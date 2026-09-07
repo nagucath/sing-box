@@ -37,33 +37,38 @@ func RegisterInbound(registry *inbound.Registry) {
 }
 
 type Inbound struct {
-	tag                     string
-	ctx                     context.Context
-	router                  adapter.Router
-	networkManager          adapter.NetworkManager
-	logger                  log.ContextLogger
-	tunOptions              tun.Options
-	udpTimeout              time.Duration
-	udpMapping              tun.NATMapping
-	udpFiltering            tun.NATFiltering
-	udpNATMax               uint32
-	dnsHijackAddress        []netip.Addr
-	dnsHijackByPort         bool
-	stack                   string
-	tunIf                   tun.Tun
-	tunStack                tun.Stack
-	platformInterface       adapter.PlatformInterface
-	usePlatformInterface    bool
-	platformOptions         option.TunPlatformOptions
-	enableAutoRedirect      bool
-	usePlatformAutoRedirect bool
-	disableNFTables         bool
-	autoRedirect            tun.AutoRedirect
-	routeRuleSet            []adapter.RuleSet
-	routeExcludeRuleSet     []adapter.RuleSet
-	routeAddressSetAccess   sync.RWMutex
-	routeAddressSet         []*netipx.IPSet
-	routeExcludeAddressSet  []*netipx.IPSet
+	tag                         string
+	ctx                         context.Context
+	router                      adapter.Router
+	networkManager              adapter.NetworkManager
+	logger                      log.ContextLogger
+	tunOptions                  tun.Options
+	udpTimeout                  time.Duration
+	udpMapping                  tun.NATMapping
+	udpFiltering                tun.NATFiltering
+	udpNATMax                   uint32
+	dnsHijackAddress            []netip.Addr
+	dnsHijackByPort             bool
+	stack                       string
+	tunIf                       tun.Tun
+	tunStack                    tun.Stack
+	platformInterface           adapter.PlatformInterface
+	usePlatformInterface        bool
+	platformOptions             option.TunPlatformOptions
+	enableAutoRedirect          bool
+	usePlatformAutoRedirect     bool
+	disableNFTables             bool
+	autoRedirect                tun.AutoRedirect
+	routeRuleSet                []adapter.RuleSet
+	routeExcludeRuleSet         []adapter.RuleSet
+	routeAddressSetAccess       sync.RWMutex
+	routeAddressSet             []*netipx.IPSet
+	routeExcludeAddressSet      []*netipx.IPSet
+	autoRedirectMarkRegistered  bool
+	closeOnce                   sync.Once
+	closeErr                    error
+	routeRuleSetCallback        []*list.Element[adapter.RuleSetUpdateCallback]
+	routeExcludeRuleSetCallback []*list.Element[adapter.RuleSetUpdateCallback]
 }
 
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.TunInboundOptions) (adapter.Inbound, error) {
@@ -285,6 +290,7 @@ func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLo
 			if err != nil {
 				return nil, err
 			}
+			inbound.autoRedirectMarkRegistered = true
 		}
 	}
 	return inbound, nil
@@ -587,6 +593,20 @@ func (t *Inbound) FlushSystemDNSCache() {
 		return
 	}
 	linuxTUN.FlushDNSCache()
+}
+
+func (t *Inbound) Close() error {
+	t.closeOnce.Do(func() {
+		t.closeErr = common.Close(
+			t.tunStack,
+			t.tunIf,
+			t.autoRedirect,
+		)
+		if t.closeErr == nil && t.autoRedirectMarkRegistered {
+			t.closeErr = t.networkManager.UnregisterAutoRedirectOutputMark(t.tunOptions.AutoRedirectOutputMark)
+		}
+	})
+	return t.closeErr
 }
 
 func (t *Inbound) JudgeFlow(network uint8, source netip.AddrPort, destination netip.AddrPort, firstPacket []byte) tun.FlowVerdict {
