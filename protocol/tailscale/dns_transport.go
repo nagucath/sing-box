@@ -86,7 +86,7 @@ func (t *DNSTransport) Start(stage adapter.StartStage, scope *adapter.Scope) err
 	if !loaded {
 		return E.New("endpoint not found: ", t.endpointTag)
 	}
-	ep, isTailscale := rawOutbound.(*Endpoint)
+	ep, isTailscale := endpointCoreOf(rawOutbound)
 	if !isTailscale {
 		return E.New("endpoint is not Tailscale: ", t.endpointTag)
 	}
