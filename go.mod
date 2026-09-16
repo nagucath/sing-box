@@ -206,4 +206,4 @@ require (
 )
 
 replace github.com/daeuniverse/dae/ebpfinbound => github.com/wignerStan/dae/ebpfinbound v0.0.0-20260907212147-03db16e3d761
-replace github.com/sagernet/tailscale => github.com/wignerStan/tailscale v0.0.0-20260908012715-76dc752abe20
+replace github.com/sagernet/tailscale => github.com/wignerStan/tailscale v0.0.0-20260916025124-ddc87a687baf
