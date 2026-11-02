@@ -1,6 +1,6 @@
 diff --git a/tsnet/dataplane_mode_test.go b/tsnet/dataplane_mode_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..5b7ee0ddd1d53c00e4617cfdcf90f0471625c001
+index 0000000..5b7ee0d
 --- /dev/null
 +++ b/tsnet/dataplane_mode_test.go
 @@ -0,0 +1,92 @@
@@ -97,7 +97,7 @@ index 0000000000000000000000000000000000000000..5b7ee0ddd1d53c00e4617cfdcf90f047
 +	}
 +}
 diff --git a/tsnet/tsnet.go b/tsnet/tsnet.go
-index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175cf6820784 100644
+index 0f71d0e..409f6b7 100644
 --- a/tsnet/tsnet.go
 +++ b/tsnet/tsnet.go
 @@ -207,6 +207,38 @@
@@ -159,7 +159,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  	Dialer           N.Dialer
  	ControlFunc      func(network, address string, conn syscall.RawConn) error
  	ListenPacketFunc func(ctx context.Context, network, address string) (nettype.PacketConn, error)
-@@ -374,6 +419,29 @@ type Server struct {
+@@ -375,6 +420,29 @@ type Server struct {
  // over the TCP conn.
  type FallbackTCPHandler func(src, dst netip.AddrPort) (handler func(net.Conn), intercept bool)
  
@@ -189,7 +189,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  // Dial connects to the address on the tailnet.
  // It will start the server if it has not been started yet.
  func (s *Server) Dial(ctx context.Context, network, address string) (net.Conn, error) {
-@@ -383,6 +451,20 @@ func (s *Server) Dial(ctx context.Context, network, address string) (net.Conn, e
+@@ -384,6 +452,20 @@ func (s *Server) Dial(ctx context.Context, network, address string) (net.Conn, e
  	if err := s.awaitRunning(ctx); err != nil {
  		return nil, err
  	}
@@ -210,7 +210,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  	return s.dialer.UserDial(ctx, network, address)
  }
  
-@@ -779,6 +861,11 @@ func (s *Server) start() (reterr error) {
+@@ -780,6 +862,11 @@ func (s *Server) start() (reterr error) {
  	var closePool closeOnErrorPool
  	defer closePool.closeAllIfError(&reterr)
  
@@ -222,7 +222,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  	exe, err := os.Executable()
  	if err != nil {
  		switch runtime.GOOS {
-@@ -896,68 +983,71 @@ func (s *Server) start() (reterr error) {
+@@ -897,68 +984,71 @@ func (s *Server) start() (reterr error) {
  	sys.HealthTracker.Get().SetMetricsRegistry(sys.UserMetricsRegistry())
  
  	// TODO(oxtoacart): do we need to support Taildrive on tsnet, and if so, how?
@@ -353,7 +353,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  
  	if s.Store == nil {
  		stateFile := filepath.Join(s.rootPath, "tailscaled.state")
-@@ -985,8 +1075,10 @@ func (s *Server) start() (reterr error) {
+@@ -986,8 +1076,10 @@ func (s *Server) start() (reterr error) {
  	}
  	s.logf("tsnet starting with hostname %q, varRoot %q", s.hostname, s.rootPath)
  	s.lb = lb
@@ -366,7 +366,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  	}
  	closePool.addFunc(func() { s.lb.Shutdown() })
  	prefs := ipn.NewPrefs()
-@@ -1381,6 +1473,10 @@ func (s *Server) ListenPacket(network, addr string) (net.PacketConn, error) {
+@@ -1382,6 +1474,10 @@ func (s *Server) ListenPacket(network, addr string) (net.PacketConn, error) {
  		return nil, err
  	}
  
@@ -377,7 +377,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  	// Create the netstack PacketConn first so it can handle port 0 allocation.
  	pc, err := s.netstack.ListenPacket(network, ap.String())
  	if err != nil {
-@@ -1893,6 +1989,13 @@ func (s *Server) ListenService(name string, mode ServiceMode) (*ServiceListener,
+@@ -1894,6 +1990,13 @@ func (s *Server) ListenService(name string, mode ServiceMode) (*ServiceListener,
  	if mode == nil {
  		return nil, errors.New("mode may not be nil")
  	}
@@ -391,7 +391,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  
  	// We collect cleanup tasks as we go and execute these on error. If we make
  	// it to the end we abandon these cleanup tasks by setting onError to nil.
-@@ -1906,7 +2009,7 @@ func (s *Server) ListenService(name string, mode ServiceMode) (*ServiceListener,
+@@ -1907,7 +2010,7 @@ func (s *Server) ListenService(name string, mode ServiceMode) (*ServiceListener,
  	// TODO(hwh33,tailscale/corp#35859): support TUN mode
  
  	ctx := context.Background()
@@ -400,7 +400,7 @@ index 16963fefe98c9ff05315ec60d0ce12f4a696c628..f2edd1a7d1878a86401ee87bb49b175c
  	if err != nil {
  		return nil, err
  	}
-@@ -2095,6 +2198,10 @@ func (s *Server) listen(network, addr string, lnOn listenOn) (net.Listener, erro
+@@ -2096,6 +2199,10 @@ func (s *Server) listen(network, addr string, lnOn listenOn) (net.Listener, erro
  		return nil, err
  	}
  

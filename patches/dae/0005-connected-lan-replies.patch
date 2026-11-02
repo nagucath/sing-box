@@ -1,106 +1,5 @@
-diff --git a/control/kern/tproxy.c b/control/kern/tproxy.c
-index 7f557ec8c22ce6af256543a8098b0ff2b225bb91..2240e34433d835a84392b5bef86a72b688bfc691 100644
---- a/control/kern/tproxy.c
-+++ b/control/kern/tproxy.c
-@@ -187,21 +187,26 @@ struct dae_param {
-  * can be rewritten from userspace via RewriteConstants. */
- const volatile struct dae_param PARAM = {};
- 
--static __always_inline bool capture_mark_bypassed(struct __sk_buff *skb)
-+static __always_inline bool capture_mark_matches(__u32 mark)
- {
- #ifdef DAE_CAPTURE_ONLY
- 	/* Socket marks remain authoritative when cookie PID metadata belongs to
- 	 * another process or the initial PID namespace. Never recapture the
- 	 * embedding application's own DNS, outbound, or transparent reply socket. */
--	if (PARAM.dae_socket_mark && skb->mark == PARAM.dae_socket_mark)
-+	if (PARAM.dae_socket_mark && mark == PARAM.dae_socket_mark)
- 		return true;
- 	return PARAM.bypass_mark_mask &&
--	       (skb->mark & PARAM.bypass_mark_mask) == PARAM.bypass_mark;
-+	       (mark & PARAM.bypass_mark_mask) == PARAM.bypass_mark;
- #else
- 	return false;
- #endif
- }
- 
-+static __always_inline bool capture_mark_bypassed(struct __sk_buff *skb)
-+{
-+	return capture_mark_matches(skb->mark);
-+}
-+
- /* fast_sock map and sk_msg programs are preserved here strictly for ABI compatibility
-  * with Go's generated bpf2go code (bpf_stub.go) and tcp_offload_linux.go.
-  * BPF_PROG_TYPE_SOCK_OPS + BPF_PROG_TYPE_SK_MSG (bpf_msg_redirect_hash) combination
-@@ -2079,6 +2084,54 @@ redirect_lan_packet_to_control_plane(struct __sk_buff *skb, __u32 link_h_len,
- 	return redirect_to_control_plane_ingress();
- }
- 
-+// A marked connected host socket may send through a LAN-classified interface. Its
-+// reply has no skb mark and no capture conntrack entry, because the query was
-+// exempted. Preserve delivery to that socket in the receiving device's netns,
-+// not the separate provider netns containing the transparent listeners.
-+static __always_inline bool
-+capture_lan_udp_reply_bypassed(struct __sk_buff *skb,
-+			       const struct parsed_packet *pkt)
-+{
-+#ifdef DAE_CAPTURE_ONLY
-+	if (pkt->l4proto != IPPROTO_UDP)
-+		return false;
-+
-+	struct bpf_sock_tuple tuple = { 0 };
-+	__u32 tuple_size;
-+	if (pkt->ethh.h_proto == bpf_htons(ETH_P_IP)) {
-+		tuple.ipv4.daddr = pkt->tuples.five.dip.u6_addr32[3];
-+		tuple.ipv4.saddr = pkt->tuples.five.sip.u6_addr32[3];
-+		tuple.ipv4.dport = pkt->tuples.five.dport;
-+		tuple.ipv4.sport = pkt->tuples.five.sport;
-+		tuple_size = sizeof(tuple.ipv4);
-+	} else {
-+		__builtin_memcpy(tuple.ipv6.daddr, &pkt->tuples.five.dip,
-+				 IPV6_BYTE_LENGTH);
-+		__builtin_memcpy(tuple.ipv6.saddr, &pkt->tuples.five.sip,
-+				 IPV6_BYTE_LENGTH);
-+		tuple.ipv6.dport = pkt->tuples.five.dport;
-+		tuple.ipv6.sport = pkt->tuples.five.sport;
-+		tuple_size = sizeof(tuple.ipv6);
-+	}
-+
-+	// -1 is BPF_F_CURRENT_NETNS; some bundled vmlinux headers omit its enum.
-+	struct bpf_sock *sk = bpf_sk_lookup_udp(skb, &tuple, tuple_size,
-+					     (__u64)-1, 0);
-+	if (!sk)
-+		return false;
-+	struct bpf_sock *fullsock = bpf_sk_fullsock(sk);
-+	// Only a connected UDP socket proves ownership of this complete tuple.
-+	// Unconnected transparent reply sockets bind foreign addresses, and even
-+	// wildcard sockets can match transit packets to an unrelated destination.
-+	bool bypass = fullsock && fullsock->state == BPF_TCP_ESTABLISHED &&
-+		      capture_mark_matches(fullsock->mark);
-+	bpf_sk_release(sk);
-+	return bypass;
-+#else
-+	return false;
-+#endif
-+}
-+
- static __noinline int do_tproxy_lan_ingress(struct __sk_buff *skb, __u32 link_h_len)
- {
- 	if (capture_mark_bypassed(skb))
-@@ -2105,6 +2158,11 @@ static __noinline int do_tproxy_lan_ingress(struct __sk_buff *skb, __u32 link_h_
- 		return TC_ACT_OK;
- 	}
- 
-+	// Socket ownership takes precedence over cached routing, including when
-+	// an ephemeral tuple has been reused. Never overwrite the reply's mark.
-+	if (capture_lan_udp_reply_bypassed(skb, pkt))
-+		return TC_ACT_PIPE;
-+
- 	/*
-    * ip rule add fwmark 0x8000000/0x8000000 table 2023
-    * ip route add local default dev lo table 2023
 diff --git a/ebpfinbound/README.md b/ebpfinbound/README.md
-index 319fd28d2d33d80e5c7f3ecafc3796a517c8272e..2dd94a325c53aa7f652c77bb4c1d790914140365 100644
+index 319fd28..2dd94a3 100644
 --- a/ebpfinbound/README.md
 +++ b/ebpfinbound/README.md
 @@ -84,3 +84,16 @@ and mask `0xff0000`, leaving its existing policy-routing behavior intact.
@@ -13742,7 +13641,7 @@ S(l@wAZel<;0zNnuoc2FH=RVT_
 
 diff --git a/ebpfinbound/lan_reply_socket_integration_linux_test.go b/ebpfinbound/lan_reply_socket_integration_linux_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..7e63838618f91a9f73d981acd88dd1de603afec3
+index 0000000..7e63838
 --- /dev/null
 +++ b/ebpfinbound/lan_reply_socket_integration_linux_test.go
 @@ -0,0 +1,104 @@
@@ -13851,7 +13750,7 @@ index 0000000000000000000000000000000000000000..7e63838618f91a9f73d981acd88dd1de
 +	}
 +}
 diff --git a/ebpfinbound/runtime_integration_linux_test.go b/ebpfinbound/runtime_integration_linux_test.go
-index c46580ff69bfb067aa21ecb09adcd48152e064e7..bcc041453dd2751fb9c89510fd911055aa4d91aa 100644
+index c46580f..bcc0414 100644
 --- a/ebpfinbound/runtime_integration_linux_test.go
 +++ b/ebpfinbound/runtime_integration_linux_test.go
 @@ -42,6 +42,36 @@ const (

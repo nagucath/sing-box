@@ -1,6 +1,6 @@
 diff --git a/wgengine/magicsock/bind_recovery.go b/wgengine/magicsock/bind_recovery.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..5b4cc3b575ca10bc9d2853011d617f15b676b012
+index 0000000..5b4cc3b
 --- /dev/null
 +++ b/wgengine/magicsock/bind_recovery.go
 @@ -0,0 +1,62 @@
@@ -68,7 +68,7 @@ index 0000000000000000000000000000000000000000..5b4cc3b575ca10bc9d2853011d617f15
 +}
 diff --git a/wgengine/magicsock/bind_recovery_test.go b/wgengine/magicsock/bind_recovery_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..c3c9841554fe2d03cdf1ca8882a5af5e6ce20ff1
+index 0000000..c3c9841
 --- /dev/null
 +++ b/wgengine/magicsock/bind_recovery_test.go
 @@ -0,0 +1,246 @@
@@ -319,7 +319,7 @@ index 0000000000000000000000000000000000000000..c3c9841554fe2d03cdf1ca8882a5af5e
 +	}
 +}
 diff --git a/wgengine/magicsock/blockforever_conn.go b/wgengine/magicsock/blockforever_conn.go
-index 23a9c90c198532c4d19742e13a31630e2aa1a16c..78a77aede1a5638a313387f67723c94e0beedf2f 100644
+index 23a9c90..78a77ae 100644
 --- a/wgengine/magicsock/blockforever_conn.go
 +++ b/wgengine/magicsock/blockforever_conn.go
 @@ -19,6 +19,9 @@ type blockForeverConn struct {
@@ -343,7 +343,7 @@ index 23a9c90c198532c4d19742e13a31630e2aa1a16c..78a77aede1a5638a313387f67723c94e
  	return len(p), nil
  }
 diff --git a/wgengine/magicsock/magicsock.go b/wgengine/magicsock/magicsock.go
-index c3463e305fa5f72d1965b72c197cadf420891bd2..c0e09a1f57a43a1adb069e73cdfd91ed2ec5c475 100644
+index c3463e3..c0e09a1 100644
 --- a/wgengine/magicsock/magicsock.go
 +++ b/wgengine/magicsock/magicsock.go
 @@ -3695,6 +3695,10 @@ func (c *Conn) onPortMapChanged(portmappertype.Mapping) { c.ReSTUN("portmap-chan
@@ -430,7 +430,7 @@ index c3463e305fa5f72d1965b72c197cadf420891bd2..c0e09a1f57a43a1adb069e73cdfd91ed
  
  type currentPortFate uint8
 diff --git a/wgengine/magicsock/rebinding_conn.go b/wgengine/magicsock/rebinding_conn.go
-index 1120972d0e4caa005d6d4f6e5dab789ce217100f..a5527494f4f97a1c38b80d8c10f5d361b4102d0d 100644
+index 1120972..a552749 100644
 --- a/wgengine/magicsock/rebinding_conn.go
 +++ b/wgengine/magicsock/rebinding_conn.go
 @@ -10,6 +10,7 @@

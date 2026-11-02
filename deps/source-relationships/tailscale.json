@@ -6,7 +6,7 @@
   "schema_version": "sing-box-patched-source/v1",
   "series": "patches/tailscale/series",
   "source": {
-    "commit": "35e61219deddbf10d8ab8eab86df59c4d62313ea",
+    "commit": "670967df7dbf74036e4fd354f1b803ff194b4723",
     "path": "third_party/tailscale",
     "url": "https://github.com/SagerNet/tailscale.git"
   }

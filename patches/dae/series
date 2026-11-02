@@ -4,3 +4,6 @@
 0004-authoritative-output-mark.patch
 0005-connected-lan-replies.patch
 0006-interface-recreation.patch
+0007-split-datapath-roles.patch
+0008-redirect-index-fallback.patch
+0009-regenerated-bpf.patch

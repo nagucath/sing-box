@@ -1,6 +1,6 @@
 diff --git a/CGNAT_DIRECT_UDP.md b/CGNAT_DIRECT_UDP.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..ad0b336e1a39ebcedb7d50b2a605f25fe75002a5
+index 0000000..ad0b336
 --- /dev/null
 +++ b/CGNAT_DIRECT_UDP.md
 @@ -0,0 +1,28 @@
@@ -33,7 +33,7 @@ index 0000000000000000000000000000000000000000..ad0b336e1a39ebcedb7d50b2a605f25f
 +It verifies UDP round trips, rejects a different UDP port and TCP on the same
 +port, then verifies port replacement and cleanup with iptables and nftables.
 diff --git a/net/netmon/interfaces.go b/net/netmon/interfaces.go
-index c3a7913402dd6787fdcd73695f58f5ea251f6f2e..eaf95cf391fea5b47ecf173c16566cadfefe4f6f 100644
+index c3a7913..eaf95cf 100644
 --- a/net/netmon/interfaces.go
 +++ b/net/netmon/interfaces.go
 @@ -56,6 +56,12 @@ func (m *Monitor) SetTailscaleInterfaceName(ifName string) {
@@ -51,7 +51,7 @@ index c3a7913402dd6787fdcd73695f58f5ea251f6f2e..eaf95cf391fea5b47ecf173c16566cad
  		return
 diff --git a/net/netmon/local_addresses_cgnat_test.go b/net/netmon/local_addresses_cgnat_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..c81ed23b19ac22a1a0720b76524b17f1ad1f6486
+index 0000000..c81ed23
 --- /dev/null
 +++ b/net/netmon/local_addresses_cgnat_test.go
 @@ -0,0 +1,102 @@
@@ -158,7 +158,7 @@ index 0000000000000000000000000000000000000000..c81ed23b19ac22a1a0720b76524b17f1
 +	}
 +}
 diff --git a/net/netmon/state.go b/net/netmon/state.go
-index 0081b86b2be12a63e4d15aed118062bf13417187..a5cdf60027a281ace9599af1de624ba22172a367 100644
+index 08f545f..90ef8a7 100644
 --- a/net/netmon/state.go
 +++ b/net/netmon/state.go
 @@ -62,16 +62,28 @@ func LocalAddresses() (regular, loopback []netip.Addr, err error) {
@@ -224,7 +224,7 @@ index 0081b86b2be12a63e4d15aed118062bf13417187..a5cdf60027a281ace9599af1de624ba2
  	// early in the startup process.  The non-sandboxed app does not.
 diff --git a/scripts/test-cgnat-kernel.sh b/scripts/test-cgnat-kernel.sh
 new file mode 100644
-index 0000000000000000000000000000000000000000..ba9036055aeacc07273eeeb8f0326cc0e344c20e
+index 0000000..ba90360
 --- /dev/null
 +++ b/scripts/test-cgnat-kernel.sh
 @@ -0,0 +1,30 @@
@@ -259,7 +259,7 @@ index 0000000000000000000000000000000000000000..ba9036055aeacc07273eeeb8f0326cc0
 +  cleanup
 +done
 diff --git a/util/linuxfw/iptables_runner.go b/util/linuxfw/iptables_runner.go
-index b18f0e7ebb1d080afc9cf0991b52cb5fd2bc0bc8..5d7de5c0afbc39f1bba6e4a65759cfa02624b51d 100644
+index b18f0e7..5d7de5c 100644
 --- a/util/linuxfw/iptables_runner.go
 +++ b/util/linuxfw/iptables_runner.go
 @@ -641,7 +641,7 @@ func (i *iptablesRunner) DelConnmarkSaveRule() error {
@@ -285,7 +285,7 @@ index b18f0e7ebb1d080afc9cf0991b52cb5fd2bc0bc8..5d7de5c0afbc39f1bba6e4a65759cfa0
  
 diff --git a/util/linuxfw/magicsock_cgnat_integration_test.go b/util/linuxfw/magicsock_cgnat_integration_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..f1e69a91553ae45e313e1851fdd5e74ee703018a
+index 0000000..f1e69a9
 --- /dev/null
 +++ b/util/linuxfw/magicsock_cgnat_integration_test.go
 @@ -0,0 +1,136 @@
@@ -427,7 +427,7 @@ index 0000000000000000000000000000000000000000..f1e69a91553ae45e313e1851fdd5e74e
 +}
 diff --git a/util/linuxfw/magicsock_cgnat_test.go b/util/linuxfw/magicsock_cgnat_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..56f5be26f098f7a2ada0d3443d70e62a1e45331a
+index 0000000..56f5be2
 --- /dev/null
 +++ b/util/linuxfw/magicsock_cgnat_test.go
 @@ -0,0 +1,98 @@
@@ -530,7 +530,7 @@ index 0000000000000000000000000000000000000000..56f5be26f098f7a2ada0d3443d70e62a
 +	}
 +}
 diff --git a/util/linuxfw/nftables_runner.go b/util/linuxfw/nftables_runner.go
-index 7a534f229f396b29a82a9f873c31bef417c31a6b..c2455f43714b9fa4d2a4c9cae725a9140b19bb93 100644
+index 7a534f2..c2455f4 100644
 --- a/util/linuxfw/nftables_runner.go
 +++ b/util/linuxfw/nftables_runner.go
 @@ -1528,7 +1528,9 @@ func createAcceptOnPortRule(table *nftables.Table, chain *nftables.Chain, port u

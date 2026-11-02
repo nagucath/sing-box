@@ -1,6 +1,6 @@
 diff --git a/.github/workflows/ebpfinbound.yml b/.github/workflows/ebpfinbound.yml
 new file mode 100644
-index 0000000000000000000000000000000000000000..94f61f1bda565e53b7ecbfc3c41462201689cc5c
+index 0000000..94f61f1
 --- /dev/null
 +++ b/.github/workflows/ebpfinbound.yml
 @@ -0,0 +1,104 @@
@@ -109,7 +109,7 @@ index 0000000000000000000000000000000000000000..94f61f1bda565e53b7ecbfc3c4146220
 +          sudo ip netns delete dae-ci-lan 2>/dev/null || true
 +          sudo ip netns delete dae-ci-wan 2>/dev/null || true
 diff --git a/.gitignore b/.gitignore
-index fb7ae7477de5a1100a1a859d5bb2facec95209ce..0be365693bb03c78bf28dd693d33b5f5ae2da0bd 100644
+index fb7ae74..0be3656 100644
 --- a/.gitignore
 +++ b/.gitignore
 @@ -6,6 +6,10 @@ bpf*_bpfeb*.go
@@ -124,10 +124,10 @@ index fb7ae7477de5a1100a1a859d5bb2facec95209ce..0be365693bb03c78bf28dd693d33b5f5
  outline.json
  go-mod/
 diff --git a/control/kern/tproxy.c b/control/kern/tproxy.c
-index babab721324073c4e5a53af311bd028f513203d1..2f61651d04a13c1bd0f00f8e08fdc5bd9fdc5a78 100644
+index 499b80f..6a2bc4c 100644
 --- a/control/kern/tproxy.c
 +++ b/control/kern/tproxy.c
-@@ -1411,6 +1411,10 @@ static __noinline __s64 route(const __u32 *flag, const void *l4hdr,
+@@ -1916,6 +1916,10 @@ static __noinline __s64 route(const __u32 *flag, const void *l4hdr,
  			      const __be32 *saddr, const __be32 *daddr,
  			      const __be32 *mac)
  {
@@ -138,7 +138,7 @@ index babab721324073c4e5a53af311bd028f513203d1..2f61651d04a13c1bd0f00f8e08fdc5bd
  #define _l4proto_type flag[0]
  #define _ipversion_type flag[1]
  #define _pname (&flag[2])
-@@ -2458,6 +2462,13 @@ static __noinline bool
+@@ -3384,6 +3388,13 @@ static __noinline bool
  wan_outbound_is_alive(struct __sk_buff *skb, __u8 outbound, __u8 l4proto,
  		      __be16 dport)
  {
@@ -149,10 +149,10 @@ index babab721324073c4e5a53af311bd028f513203d1..2f61651d04a13c1bd0f00f8e08fdc5bd
 +	(void)dport;
 +	return true;
 +#else
- 	/* DNS must always reach control plane; userspace handles fallback. */
- 	if (dport == bpf_htons(53))
- 		return true;
-@@ -2480,6 +2491,7 @@ wan_outbound_is_alive(struct __sk_buff *skb, __u8 outbound, __u8 l4proto,
+ 	/* Reserved outbounds (must_rules, control-plane routing, logical
+ 	 * markers) have no connectivity entries: the map below is sized for
+ 	 * user-defined ids only, so a reserved id would read a zeroed entry
+@@ -3415,6 +3426,7 @@ wan_outbound_is_alive(struct __sk_buff *skb, __u8 outbound, __u8 l4proto,
  	if (alive && *alive == 0)
  		return false;
  	return true;
@@ -162,7 +162,7 @@ index babab721324073c4e5a53af311bd028f513203d1..2f61651d04a13c1bd0f00f8e08fdc5bd
  static __noinline int
 diff --git a/ebpfinbound/README.md b/ebpfinbound/README.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..f14981475fa3865b1b7cb8c668216eace1f2419f
+index 0000000..f149814
 --- /dev/null
 +++ b/ebpfinbound/README.md
 @@ -0,0 +1,72 @@
@@ -240,7 +240,7 @@ index 0000000000000000000000000000000000000000..f14981475fa3865b1b7cb8c668216eac
 +Run the privileged test only on a disposable Linux machine or VM. The test restores leased sysctls and removes its temporary namespaces, links, filters and qdiscs before it exits.
 diff --git a/ebpfinbound/api.go b/ebpfinbound/api.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..9ae868e98b4fa4413275f02a713fba894f7abc3e
+index 0000000..9ae868e
 --- /dev/null
 +++ b/ebpfinbound/api.go
 @@ -0,0 +1,86 @@
@@ -332,7 +332,7 @@ index 0000000000000000000000000000000000000000..9ae868e98b4fa4413275f02a713fba89
 +}
 diff --git a/ebpfinbound/api_test.go b/ebpfinbound/api_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..c230aadac2288ebdcd143070914938af4288a880
+index 0000000..c230aad
 --- /dev/null
 +++ b/ebpfinbound/api_test.go
 @@ -0,0 +1,59 @@
@@ -397,7 +397,7 @@ index 0000000000000000000000000000000000000000..c230aadac2288ebdcd143070914938af
 +}
 diff --git a/ebpfinbound/attach_linux.go b/ebpfinbound/attach_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..ef950d4bbe3e466ee9b61014d2cd5f2a59db6dc9
+index 0000000..ef950d4
 --- /dev/null
 +++ b/ebpfinbound/attach_linux.go
 @@ -0,0 +1,593 @@
@@ -996,7 +996,7 @@ index 0000000000000000000000000000000000000000..ef950d4bbe3e466ee9b61014d2cd5f2a
 +}
 diff --git a/ebpfinbound/attach_stub.go b/ebpfinbound/attach_stub.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..657e3cc03656cd8b275604d46b8a617740dcb9c0
+index 0000000..657e3cc
 --- /dev/null
 +++ b/ebpfinbound/attach_stub.go
 @@ -0,0 +1,13 @@
@@ -1015,7 +1015,7 @@ index 0000000000000000000000000000000000000000..657e3cc03656cd8b275604d46b8a6177
 +func cleanupStaleAttachments([]ownedAttachmentRecord) error         { return nil }
 diff --git a/ebpfinbound/attachment_linux.go b/ebpfinbound/attachment_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..e2e1e077d0b9a90eff5b0c9140b7450c0def5b8b
+index 0000000..e2e1e07
 --- /dev/null
 +++ b/ebpfinbound/attachment_linux.go
 @@ -0,0 +1,10 @@
@@ -1031,7 +1031,7 @@ index 0000000000000000000000000000000000000000..e2e1e077d0b9a90eff5b0c9140b7450c
 +)
 diff --git a/ebpfinbound/bpf_bpfeb.go b/ebpfinbound/bpf_bpfeb.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..064bc477baa60f79a495c4becb9730eda94c60d4
+index 0000000..064bc47
 --- /dev/null
 +++ b/ebpfinbound/bpf_bpfeb.go
 @@ -0,0 +1,312 @@
@@ -8291,7 +8291,7 @@ HcmV?d00001
 
 diff --git a/ebpfinbound/bpf_bpfel.go b/ebpfinbound/bpf_bpfel.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..bbae452b6d24ab3bd7177430f8aadbe8c46ce9fd
+index 0000000..bbae452
 --- /dev/null
 +++ b/ebpfinbound/bpf_bpfel.go
 @@ -0,0 +1,312 @@
@@ -15094,7 +15094,7 @@ HcmV?d00001
 
 diff --git a/ebpfinbound/bpf_linux.go b/ebpfinbound/bpf_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..6382637a0e40c8cbf09de988e8b3ed6f51f2d3aa
+index 0000000..6382637
 --- /dev/null
 +++ b/ebpfinbound/bpf_linux.go
 @@ -0,0 +1,391 @@
@@ -15491,7 +15491,7 @@ index 0000000000000000000000000000000000000000..6382637a0e40c8cbf09de988e8b3ed6f
 +}
 diff --git a/ebpfinbound/bpf_stub.go b/ebpfinbound/bpf_stub.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..5cb07fb206deb6e329f87c3f1e3242229795e385
+index 0000000..5cb07fb
 --- /dev/null
 +++ b/ebpfinbound/bpf_stub.go
 @@ -0,0 +1,23 @@
@@ -15520,7 +15520,7 @@ index 0000000000000000000000000000000000000000..5cb07fb206deb6e329f87c3f1e324222
 +func stubBPFError() error { return errors.New("dae stub BPF build cannot attach traffic") }
 diff --git a/ebpfinbound/capture.go b/ebpfinbound/capture.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..4acbf4702e43b98f82ff81c9612adacf23515b40
+index 0000000..4acbf47
 --- /dev/null
 +++ b/ebpfinbound/capture.go
 @@ -0,0 +1,50 @@
@@ -15576,7 +15576,7 @@ index 0000000000000000000000000000000000000000..4acbf4702e43b98f82ff81c9612adacf
 +}
 diff --git a/ebpfinbound/cgroup_stub.go b/ebpfinbound/cgroup_stub.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..ffbb3dfa7b11e2d7a4bb35230e4cf7797005c740
+index 0000000..ffbb3df
 --- /dev/null
 +++ b/ebpfinbound/cgroup_stub.go
 @@ -0,0 +1,31 @@
@@ -15613,7 +15613,7 @@ index 0000000000000000000000000000000000000000..ffbb3dfa7b11e2d7a4bb35230e4cf779
 +}
 diff --git a/ebpfinbound/cmd/dae-ebpf-tool/main.go b/ebpfinbound/cmd/dae-ebpf-tool/main.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..24f786c814c41c6b66b6f25b8408a8e9f2205114
+index 0000000..24f786c
 --- /dev/null
 +++ b/ebpfinbound/cmd/dae-ebpf-tool/main.go
 @@ -0,0 +1,100 @@
@@ -15719,7 +15719,7 @@ index 0000000000000000000000000000000000000000..24f786c814c41c6b66b6f25b8408a8e9
 +}
 diff --git a/ebpfinbound/cmd/dae-ebpf-tool/main_test.go b/ebpfinbound/cmd/dae-ebpf-tool/main_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..e0744a190167b7119c61e7889761d6a74120c564
+index 0000000..e0744a1
 --- /dev/null
 +++ b/ebpfinbound/cmd/dae-ebpf-tool/main_test.go
 @@ -0,0 +1,23 @@
@@ -15748,7 +15748,7 @@ index 0000000000000000000000000000000000000000..e0744a190167b7119c61e7889761d6a7
 +}
 diff --git a/ebpfinbound/generate.go b/ebpfinbound/generate.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..7e0758fd0f32169ca3082881c6832a0624c3c3e3
+index 0000000..7e0758f
 --- /dev/null
 +++ b/ebpfinbound/generate.go
 @@ -0,0 +1,5 @@
@@ -15759,7 +15759,7 @@ index 0000000000000000000000000000000000000000..7e0758fd0f32169ca3082881c6832a06
 +//go:generate python3 internal/generate.py
 diff --git a/ebpfinbound/go.mod b/ebpfinbound/go.mod
 new file mode 100644
-index 0000000000000000000000000000000000000000..0134d6d208870c4204a457dad6156b25c36090f2
+index 0000000..0134d6d
 --- /dev/null
 +++ b/ebpfinbound/go.mod
 @@ -0,0 +1,10 @@
@@ -15775,7 +15775,7 @@ index 0000000000000000000000000000000000000000..0134d6d208870c4204a457dad6156b25
 +)
 diff --git a/ebpfinbound/go.sum b/ebpfinbound/go.sum
 new file mode 100644
-index 0000000000000000000000000000000000000000..20fd2437180ca1f079d4be5b0591671de12a6114
+index 0000000..20fd243
 --- /dev/null
 +++ b/ebpfinbound/go.sum
 @@ -0,0 +1,32 @@
@@ -15813,7 +15813,7 @@ index 0000000000000000000000000000000000000000..20fd2437180ca1f079d4be5b0591671d
 +golang.org/x/sys v0.41.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
 diff --git a/ebpfinbound/internal/generate.py b/ebpfinbound/internal/generate.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..1f741ca75fed7b29c5bccaf3652179c6fe01fa52
+index 0000000..1f741ca
 --- /dev/null
 +++ b/ebpfinbound/internal/generate.py
 @@ -0,0 +1,70 @@
@@ -15889,7 +15889,7 @@ index 0000000000000000000000000000000000000000..1f741ca75fed7b29c5bccaf3652179c6
 +    path.write_text("\n".join(lines) + "\n")
 diff --git a/ebpfinbound/janitor_linux.go b/ebpfinbound/janitor_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..1f22368cc0b17e5d03e0438bc1b189057035e928
+index 0000000..1f22368
 --- /dev/null
 +++ b/ebpfinbound/janitor_linux.go
 @@ -0,0 +1,47 @@
@@ -15942,7 +15942,7 @@ index 0000000000000000000000000000000000000000..1f22368cc0b17e5d03e0438bc1b18905
 +}
 diff --git a/ebpfinbound/janitor_stub.go b/ebpfinbound/janitor_stub.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..ec5f33ea24a2aea892e93a7341f6a87bcd69803f
+index 0000000..ec5f33e
 --- /dev/null
 +++ b/ebpfinbound/janitor_stub.go
 @@ -0,0 +1,10 @@
@@ -15958,7 +15958,7 @@ index 0000000000000000000000000000000000000000..ec5f33ea24a2aea892e93a7341f6a87b
 +}
 diff --git a/ebpfinbound/listener_linux.go b/ebpfinbound/listener_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..74ac585f1a637c2953b74f4608b6fc10a526a0b2
+index 0000000..74ac585
 --- /dev/null
 +++ b/ebpfinbound/listener_linux.go
 @@ -0,0 +1,234 @@
@@ -16198,7 +16198,7 @@ index 0000000000000000000000000000000000000000..74ac585f1a637c2953b74f4608b6fc10
 +}
 diff --git a/ebpfinbound/netns_linux.go b/ebpfinbound/netns_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..af106737d88a70ae8cf9bddf57d575aecb2f8f64
+index 0000000..af10673
 --- /dev/null
 +++ b/ebpfinbound/netns_linux.go
 @@ -0,0 +1,333 @@
@@ -16537,7 +16537,7 @@ index 0000000000000000000000000000000000000000..af106737d88a70ae8cf9bddf57d575ae
 +}
 diff --git a/ebpfinbound/oob_linux.go b/ebpfinbound/oob_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..f83e2316e0c7e03e7effed7544f670e29d9b32b2
+index 0000000..f83e231
 --- /dev/null
 +++ b/ebpfinbound/oob_linux.go
 @@ -0,0 +1,57 @@
@@ -16600,7 +16600,7 @@ index 0000000000000000000000000000000000000000..f83e2316e0c7e03e7effed7544f670e2
 +}
 diff --git a/ebpfinbound/oob_other.go b/ebpfinbound/oob_other.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..1c02d81a62788a061a21d67dd09542bda9e06794
+index 0000000..1c02d81
 --- /dev/null
 +++ b/ebpfinbound/oob_other.go
 @@ -0,0 +1,9 @@
@@ -16615,7 +16615,7 @@ index 0000000000000000000000000000000000000000..1c02d81a62788a061a21d67dd09542bd
 +func OriginalDestination([]byte) netip.AddrPort { return netip.AddrPort{} }
 diff --git a/ebpfinbound/options.go b/ebpfinbound/options.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..6937454834a7b74493fb9a358462c7c5c513ae73
+index 0000000..6937454
 --- /dev/null
 +++ b/ebpfinbound/options.go
 @@ -0,0 +1,47 @@
@@ -16668,7 +16668,7 @@ index 0000000000000000000000000000000000000000..6937454834a7b74493fb9a358462c7c5
 +}
 diff --git a/ebpfinbound/ownership_linux.go b/ebpfinbound/ownership_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..c12a942ca0ce820e88f212b8e55f4a7ddf83c73f
+index 0000000..c12a942
 --- /dev/null
 +++ b/ebpfinbound/ownership_linux.go
 @@ -0,0 +1,582 @@
@@ -17256,7 +17256,7 @@ index 0000000000000000000000000000000000000000..c12a942ca0ce820e88f212b8e55f4a7d
 +}
 diff --git a/ebpfinbound/ownership_linux_test.go b/ebpfinbound/ownership_linux_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..1cb5c2f2f2742da40b1991f08bd62d5fd87a2601
+index 0000000..1cb5c2f
 --- /dev/null
 +++ b/ebpfinbound/ownership_linux_test.go
 @@ -0,0 +1,134 @@
@@ -17396,7 +17396,7 @@ index 0000000000000000000000000000000000000000..1cb5c2f2f2742da40b1991f08bd62d5f
 +}
 diff --git a/ebpfinbound/preflight_linux.go b/ebpfinbound/preflight_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..2324bf8a5b90f9d3b4e173f64aba9252b7a6fe83
+index 0000000..2324bf8
 --- /dev/null
 +++ b/ebpfinbound/preflight_linux.go
 @@ -0,0 +1,251 @@
@@ -17653,7 +17653,7 @@ index 0000000000000000000000000000000000000000..2324bf8a5b90f9d3b4e173f64aba9252
 +}
 diff --git a/ebpfinbound/process_linux.go b/ebpfinbound/process_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..63918ff95ff5ba27cab7177ae43be02ddc21ab08
+index 0000000..63918ff
 --- /dev/null
 +++ b/ebpfinbound/process_linux.go
 @@ -0,0 +1,81 @@
@@ -17740,7 +17740,7 @@ index 0000000000000000000000000000000000000000..63918ff95ff5ba27cab7177ae43be02d
 +}
 diff --git a/ebpfinbound/runtime_integration_linux_test.go b/ebpfinbound/runtime_integration_linux_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..da79ff975afb137596dfec7825c3eb07e97d202a
+index 0000000..da79ff9
 --- /dev/null
 +++ b/ebpfinbound/runtime_integration_linux_test.go
 @@ -0,0 +1,569 @@
@@ -18315,7 +18315,7 @@ index 0000000000000000000000000000000000000000..da79ff975afb137596dfec7825c3eb07
 +}
 diff --git a/ebpfinbound/runtime_linux.go b/ebpfinbound/runtime_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..e45ee9e60c1cac96961e73fb255b20b9d5a2ef2f
+index 0000000..e45ee9e
 --- /dev/null
 +++ b/ebpfinbound/runtime_linux.go
 @@ -0,0 +1,371 @@
@@ -18692,7 +18692,7 @@ index 0000000000000000000000000000000000000000..e45ee9e60c1cac96961e73fb255b20b9
 +}
 diff --git a/ebpfinbound/runtime_linux_test.go b/ebpfinbound/runtime_linux_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..416bc9eee1dab0970c0940a4a08fa21c60121ef7
+index 0000000..416bc9e
 --- /dev/null
 +++ b/ebpfinbound/runtime_linux_test.go
 @@ -0,0 +1,44 @@
@@ -18742,7 +18742,7 @@ index 0000000000000000000000000000000000000000..416bc9eee1dab0970c0940a4a08fa21c
 +}
 diff --git a/ebpfinbound/runtime_other.go b/ebpfinbound/runtime_other.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..36eff2e617827f1e0fa7b2504a9c32eb0002d9cd
+index 0000000..36eff2e
 --- /dev/null
 +++ b/ebpfinbound/runtime_other.go
 @@ -0,0 +1,20 @@
@@ -18768,7 +18768,7 @@ index 0000000000000000000000000000000000000000..36eff2e617827f1e0fa7b2504a9c32eb
 +func CleanupStale(context.Context) error { return ErrUnsupportedPlatform }
 diff --git a/ebpfinbound/sysctl_linux.go b/ebpfinbound/sysctl_linux.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..bc734e860de9b1ecd6e892b758fd4cc68668b667
+index 0000000..bc734e8
 --- /dev/null
 +++ b/ebpfinbound/sysctl_linux.go
 @@ -0,0 +1,179 @@
@@ -18953,7 +18953,7 @@ index 0000000000000000000000000000000000000000..bc734e860de9b1ecd6e892b758fd4cc6
 +}
 diff --git a/ebpfinbound/sysctl_linux_test.go b/ebpfinbound/sysctl_linux_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..f000d06dfd4b4c56411e74a55549ce8831f2f148
+index 0000000..f000d06
 --- /dev/null
 +++ b/ebpfinbound/sysctl_linux_test.go
 @@ -0,0 +1,119 @@

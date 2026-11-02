@@ -6,7 +6,7 @@
   "schema_version": "sing-box-patched-source/v1",
   "series": "patches/dae/series",
   "source": {
-    "commit": "5db27a0028d36e7847bd3796497df952337a20e2",
+    "commit": "dbae2e82d3ed5324e1648548720f8bbc8cde3882",
     "path": "third_party/dae",
     "url": "https://github.com/daeuniverse/dae.git"
   }

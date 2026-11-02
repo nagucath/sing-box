@@ -1,21 +1,8 @@
-diff --git a/.github/workflows/ebpfinbound.yml b/.github/workflows/ebpfinbound.yml
-index 94f61f1bda565e53b7ecbfc3c41462201689cc5c..5bfeadbf0f6e26a882de7a7b0a8d4b6a8fd4cfb7 100644
---- a/.github/workflows/ebpfinbound.yml
-+++ b/.github/workflows/ebpfinbound.yml
-@@ -84,7 +84,7 @@ jobs:
-             HOME="$HOME" \
-             GOCACHE="$RUNNER_TEMP/root-go-cache" \
-             GOMODCACHE="$(go env GOMODCACHE)" \
--            go test -tags=integration -run '^TestPrivilegedCaptureLifecycleAndTraffic$' -count=2 -v .
-+            go test -tags=integration -run '^TestPrivileged(BypassPreservesPacketMark|CaptureLifecycleAndTraffic)$' -count=2 -v .
-           sudo test ! -e /run/dae-ebpfinbound/owner.json
-           ! ip link show dae-ebpf0
-           ! ip link show daecilan0
 diff --git a/control/kern/tproxy.c b/control/kern/tproxy.c
-index 2f61651d04a13c1bd0f00f8e08fdc5bd9fdc5a78..6827981a049da6de262f3e9b1566b435f0323860 100644
+index 6a2bc4c..9201686 100644
 --- a/control/kern/tproxy.c
 +++ b/control/kern/tproxy.c
-@@ -174,6 +174,12 @@ struct dae_param {
+@@ -225,6 +225,12 @@ struct dae_param {
  	// When bpf_sk_lookup_* finds a socket, we check this mark to skip dae's own sockets.
  	// This prevents false positives in NAT loopback detection for transparent proxying.
  	__u32 dae_socket_mark;
@@ -28,7 +15,7 @@ index 2f61651d04a13c1bd0f00f8e08fdc5bd9fdc5a78..6827981a049da6de262f3e9b1566b435
  };
  
  /* Use const volatile for cilium/ebpf v0.20.0 compatibility.
-@@ -181,6 +187,16 @@ struct dae_param {
+@@ -232,6 +238,17 @@ struct dae_param {
   * can be rewritten from userspace via RewriteConstants. */
  const volatile struct dae_param PARAM = {};
  
@@ -42,12 +29,13 @@ index 2f61651d04a13c1bd0f00f8e08fdc5bd9fdc5a78..6827981a049da6de262f3e9b1566b435
 +#endif
 +}
 +
- /* fast_sock map and sk_msg programs are preserved here strictly for ABI compatibility
-  * with Go's generated bpf2go code (bpf_stub.go) and tcp_offload_linux.go.
-  * BPF_PROG_TYPE_SOCK_OPS + BPF_PROG_TYPE_SK_MSG (bpf_msg_redirect_hash) combination
-@@ -1954,6 +1970,9 @@ static __always_inline bool is_new_tcp_connection(const struct tcphdr *tcph)
- // Reverse-direction conntrack refresh for LAN egress.
- static __noinline int do_tproxy_lan_egress(struct __sk_buff *skb, __u32 link_h_len)
++
+ /* dae_ifindex_map holds the runtime-updatable ifindex of the dae0 device.
+  * Unlike PARAM.dae0_ifindex (frozen in .rodata at load time), this ARRAY map
+  * can be updated from userspace without reloading the BPF program. This allows
+@@ -2777,6 +2794,9 @@ static __noinline int
+ do_tproxy_lan_egress(struct __sk_buff *skb, __u32 link_h_len,
+ 		     struct parsed_packet *out)
  {
 +	if (capture_mark_bypassed(skb))
 +		return TC_ACT_PIPE;
@@ -55,8 +43,8 @@ index 2f61651d04a13c1bd0f00f8e08fdc5bd9fdc5a78..6827981a049da6de262f3e9b1566b435
  	__u32 scratch_key = 0;
  	struct parse_transport_ctx *ctx =
  		bpf_map_lookup_elem(&parse_ctx_scratch_map, &scratch_key);
-@@ -2057,6 +2076,9 @@ redirect_lan_packet_to_control_plane(struct __sk_buff *skb, __u32 link_h_len,
- 
+@@ -3166,6 +3186,9 @@ block:
+  * before the role was split out, so the callers' stack chains do not grow. */
  static __noinline int do_tproxy_lan_ingress(struct __sk_buff *skb, __u32 link_h_len)
  {
 +	if (capture_mark_bypassed(skb))
@@ -65,28 +53,28 @@ index 2f61651d04a13c1bd0f00f8e08fdc5bd9fdc5a78..6827981a049da6de262f3e9b1566b435
  	// Per-CPU scratch to stay under 512-byte stack limit.
  	__u32 scratch_key = 0;
  	struct parsed_packet *pkt =
-@@ -2397,6 +2419,9 @@ static __always_inline bool pid_is_control_plane(struct __sk_buff *skb,
- 
+@@ -3298,6 +3321,9 @@ tproxy_wan_ingress_role(struct __sk_buff *skb, __u32 link_h_len,
+ /* Middle layer for the WAN-ingress role; see do_tproxy_lan_ingress. */
  static __noinline int do_tproxy_wan_ingress(struct __sk_buff *skb, __u32 link_h_len)
  {
 +	if (capture_mark_bypassed(skb))
 +		return TC_ACT_PIPE;
 +
  	__u32 scratch_key = 0;
- 	struct parse_transport_ctx *ctx =
- 		bpf_map_lookup_elem(&parse_ctx_scratch_map, &scratch_key);
-@@ -2794,6 +2819,9 @@ fast_path_skip_routing:
- // wan_ingress and lan_egress already do.
- static __noinline int do_tproxy_wan_egress(struct __sk_buff *skb, __u32 link_h_len)
+ 	struct parsed_packet *pkt =
+ 		bpf_map_lookup_elem(&pkt_scratch_map, &scratch_key);
+@@ -3765,6 +3791,9 @@ static __noinline int
+ do_tproxy_wan_egress(struct __sk_buff *skb, __u32 link_h_len,
+ 		     struct parsed_packet *provided_pkt)
  {
 +	if (capture_mark_bypassed(skb))
 +		return TC_ACT_PIPE;
 +
  	if (skb->ingress_ifindex != NOWHERE_IFINDEX)
- 		return TC_ACT_PIPE;
+ 		return DAE_TC_CONTINUE;
  
 diff --git a/ebpfinbound/README.md b/ebpfinbound/README.md
-index f14981475fa3865b1b7cb8c668216eace1f2419f..319fd28d2d33d80e5c7f3ecafc3796a517c8272e 100644
+index f149814..319fd28 100644
 --- a/ebpfinbound/README.md
 +++ b/ebpfinbound/README.md
 @@ -70,3 +70,17 @@ sudo env PATH="$PATH" go test -tags=integration \
@@ -108,7 +96,7 @@ index f14981475fa3865b1b7cb8c668216eace1f2419f..319fd28d2d33d80e5c7f3ecafc3796a5
 +real IPv4/IPv6 TCP/UDP round trips from separately marked processes. Run these
 +tests in a disposable network and cgroup namespace, never on a production router.
 diff --git a/ebpfinbound/api_test.go b/ebpfinbound/api_test.go
-index c230aadac2288ebdcd143070914938af4288a880..a0315a6921b8441b43fd84915c589153194e6fab 100644
+index c230aad..a0315a6 100644
 --- a/ebpfinbound/api_test.go
 +++ b/ebpfinbound/api_test.go
 @@ -57,3 +57,25 @@ func TestParseLogLevel(t *testing.T) {
@@ -138,7 +126,7 @@ index c230aadac2288ebdcd143070914938af4288a880..a0315a6921b8441b43fd84915c589153
 +	}
 +}
 diff --git a/ebpfinbound/bpf_bpfeb.go b/ebpfinbound/bpf_bpfeb.go
-index 064bc477baa60f79a495c4becb9730eda94c60d4..7bdd9066c4e8bb02e8131ba693da3e80c89a4b5f 100644
+index 064bc47..7bdd906 100644
 --- a/ebpfinbound/bpf_bpfeb.go
 +++ b/ebpfinbound/bpf_bpfeb.go
 @@ -49,6 +49,8 @@ type bpfDaeParam struct {
@@ -14046,7 +14034,7 @@ zSD%yo{r0Vy5C6^Ti|@^ySK*7oH!l|#rSZHU=btQ-_PuAue{<)1^P<}4zCU?c`lhpf
 QJ8tuv`*plbjz9SS0MT{iH~;_u
 
 diff --git a/ebpfinbound/bpf_bpfel.go b/ebpfinbound/bpf_bpfel.go
-index bbae452b6d24ab3bd7177430f8aadbe8c46ce9fd..3b74ed5ab42ad6a3dac28f839b0bfde3257a0d0a 100644
+index bbae452..3b74ed5 100644
 --- a/ebpfinbound/bpf_bpfel.go
 +++ b/ebpfinbound/bpf_bpfel.go
 @@ -49,6 +49,8 @@ type bpfDaeParam struct {
@@ -27037,7 +27025,7 @@ ziE9(?-)H~n=1=&Ez2AO*|Mz*4f8X){7A0Ian+{)b^XoIOMX$dWzn?4lw=%h*xWuE-
 Vz{}tFo`3Ckqa6PI)AvGJ{s-N14e$T}
 
 diff --git a/ebpfinbound/bpf_linux.go b/ebpfinbound/bpf_linux.go
-index 6382637a0e40c8cbf09de988e8b3ed6f51f2d3aa..24bf40b8d08fdc94d68bf99daaec1c17e340144c 100644
+index 6382637..24bf40b 100644
 --- a/ebpfinbound/bpf_linux.go
 +++ b/ebpfinbound/bpf_linux.go
 @@ -113,6 +113,8 @@ func loadCaptureBPF(ns *captureNetNS, config CaptureConfig) (*captureObjects, er
@@ -27051,7 +27039,7 @@ index 6382637a0e40c8cbf09de988e8b3ed6f51f2d3aa..24bf40b8d08fdc94d68bf99daaec1c17
  	if !exists || variable == nil {
 diff --git a/ebpfinbound/bypass_integration_linux_test.go b/ebpfinbound/bypass_integration_linux_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..440ffaa19e37128948d94324338edfc19d2700d5
+index 0000000..440ffaa
 --- /dev/null
 +++ b/ebpfinbound/bypass_integration_linux_test.go
 @@ -0,0 +1,65 @@
@@ -27121,7 +27109,7 @@ index 0000000000000000000000000000000000000000..440ffaa19e37128948d94324338edfc1
 +	}
 +}
 diff --git a/ebpfinbound/capture.go b/ebpfinbound/capture.go
-index 4acbf4702e43b98f82ff81c9612adacf23515b40..74869b32416c29bde460c50798d6fa283b092520 100644
+index 4acbf47..74869b3 100644
 --- a/ebpfinbound/capture.go
 +++ b/ebpfinbound/capture.go
 @@ -14,10 +14,14 @@ const (
@@ -27156,7 +27144,7 @@ index 4acbf4702e43b98f82ff81c9612adacf23515b40..74869b32416c29bde460c50798d6fa28
  	return nil
  }
 diff --git a/ebpfinbound/runtime_integration_linux_test.go b/ebpfinbound/runtime_integration_linux_test.go
-index fc22f4d6e51869b05073f53cdb2f4f77a12b988c..3f75686f8ef2ec4d360bad135b7dfb31bff56ecf 100644
+index fc22f4d..3f75686 100644
 --- a/ebpfinbound/runtime_integration_linux_test.go
 +++ b/ebpfinbound/runtime_integration_linux_test.go
 @@ -5,6 +5,7 @@

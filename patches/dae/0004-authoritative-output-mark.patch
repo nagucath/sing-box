@@ -1,8 +1,8 @@
 diff --git a/control/kern/tproxy.c b/control/kern/tproxy.c
-index 6827981a049da6de262f3e9b1566b435f0323860..7f557ec8c22ce6af256543a8098b0ff2b225bb91 100644
+index 9201686..364f262 100644
 --- a/control/kern/tproxy.c
 +++ b/control/kern/tproxy.c
-@@ -190,6 +190,11 @@ const volatile struct dae_param PARAM = {};
+@@ -241,6 +241,11 @@ const volatile struct dae_param PARAM = {};
  static __always_inline bool capture_mark_bypassed(struct __sk_buff *skb)
  {
  #ifdef DAE_CAPTURE_ONLY
@@ -3774,7 +3774,7 @@ zo=du3sx3KvY)~zUcC9LH)w4(60EZiX)^%4<Z0?lKKu06Ll+usZ>SI^nPn_1nu)7tb
 bC3~aSz;##Eym0KS&RoT&8%A~hs+#{V2pp%{
 
 diff --git a/ebpfinbound/bypass_integration_linux_test.go b/ebpfinbound/bypass_integration_linux_test.go
-index 440ffaa19e37128948d94324338edfc19d2700d5..22df48129b403dde41f61cd7c54fb4173b1ffdb2 100644
+index 440ffaa..22df481 100644
 --- a/ebpfinbound/bypass_integration_linux_test.go
 +++ b/ebpfinbound/bypass_integration_linux_test.go
 @@ -15,6 +15,17 @@ import (
@@ -3814,7 +3814,7 @@ index 440ffaa19e37128948d94324338edfc19d2700d5..22df48129b403dde41f61cd7c54fb417
  				// __sk_buff's first three u32 fields are len, pkt_type, mark.
  				// The zero-filled full context does not carry any kernel pointers.
 diff --git a/ebpfinbound/runtime_integration_linux_test.go b/ebpfinbound/runtime_integration_linux_test.go
-index 3f75686f8ef2ec4d360bad135b7dfb31bff56ecf..c46580ff69bfb067aa21ecb09adcd48152e064e7 100644
+index 3f75686..c46580f 100644
 --- a/ebpfinbound/runtime_integration_linux_test.go
 +++ b/ebpfinbound/runtime_integration_linux_test.go
 @@ -94,7 +94,9 @@ func TestPrivilegedCaptureLifecycleAndTraffic(t *testing.T) {
