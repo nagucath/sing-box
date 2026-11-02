@@ -148,10 +148,10 @@ func TestRuntimeCoordinatorHandsOffOneDataplane(t *testing.T) {
 	first := newTestInbound(t, coordinator, manager, "dae-in", 0)
 	second := newTestInbound(t, coordinator, manager, "dae-in", 0)
 
-	if err := first.Start(adapter.StartStateStart); err != nil {
+	if err := startTestInbound(t, first); err != nil {
 		t.Fatal(err)
 	}
-	if err := second.Start(adapter.StartStateStart); err != nil {
+	if err := startTestInbound(t, second); err != nil {
 		t.Fatal(err)
 	}
 	if factoryCalls != 1 {
@@ -195,15 +195,15 @@ func TestRuntimeCoordinatorRejectsAmbiguousOwnership(t *testing.T) {
 		return runtime, nil
 	}}
 	first := newTestInbound(t, coordinator, manager, "dae-in", 0)
-	if err := first.Start(adapter.StartStateStart); err != nil {
+	if err := startTestInbound(t, first); err != nil {
 		t.Fatal(err)
 	}
 	differentTag := newTestInbound(t, coordinator, manager, "other-dae", 0)
-	if err := differentTag.Start(adapter.StartStateStart); err == nil || !strings.Contains(err.Error(), "one dae eBPF inbound tag") {
+	if err := startTestInbound(t, differentTag); err == nil || !strings.Contains(err.Error(), "one dae eBPF inbound tag") {
 		t.Fatalf("different-tag start error = %v", err)
 	}
 	differentConfig := newTestInbound(t, coordinator, manager, "dae-in", 23456)
-	if err := differentConfig.Start(adapter.StartStateStart); err == nil || !strings.Contains(err.Error(), "process restart") {
+	if err := startTestInbound(t, differentConfig); err == nil || !strings.Contains(err.Error(), "process restart") {
 		t.Fatalf("different-config start error = %v", err)
 	}
 	if err := differentTag.Close(); err != nil {
@@ -224,7 +224,7 @@ func TestRuntimeCloseWaitsForDispatch(t *testing.T) {
 		return runtime, nil
 	}}
 	inbound := newTestInbound(t, coordinator, manager, "dae-in", 0)
-	if err := inbound.Start(adapter.StartStateStart); err != nil {
+	if err := startTestInbound(t, inbound); err != nil {
 		t.Fatal(err)
 	}
 	coordinator.access.Lock()
@@ -259,7 +259,7 @@ func TestRuntimeCloseFailureRetainsOutputMark(t *testing.T) {
 		return runtime, nil
 	}}
 	inbound := newTestInbound(t, coordinator, manager, "dae-in", 0)
-	if err := inbound.Start(adapter.StartStateStart); err != nil {
+	if err := startTestInbound(t, inbound); err != nil {
 		t.Fatal(err)
 	}
 	if err := inbound.Close(); err == nil || !strings.Contains(err.Error(), "detach failed") {
@@ -348,16 +348,16 @@ func TestRuntimeCoordinatorPreservesBypassPolicy(t *testing.T) {
 		return instance
 	}
 	first := create(0x80000, 0xff0000)
-	if err := first.Start(adapter.StartStateStart); err != nil {
+	if err := startTestInbound(t, first); err != nil {
 		t.Fatal(err)
 	}
 	same := create(0x80000, 0xff0000)
-	if err := same.Start(adapter.StartStateStart); err != nil {
+	if err := startTestInbound(t, same); err != nil {
 		t.Fatal(err)
 	}
 	for _, policy := range [][2]option.FwMark{{0x40000, 0xff0000}, {0x80000, 0xf0000}, {0, 0}} {
 		changed := create(policy[0], policy[1])
-		if err := changed.Start(adapter.StartStateStart); err == nil || !strings.Contains(err.Error(), "process restart") {
+		if err := startTestInbound(t, changed); err == nil || !strings.Contains(err.Error(), "process restart") {
 			t.Fatalf("changed bypass %#x/%#x start error = %v", policy[0], policy[1], err)
 		}
 	}
@@ -379,4 +379,29 @@ func newTestInbound(t *testing.T, coordinator *runtimeCoordinator, manager *test
 	inbound := created.(*Inbound)
 	inbound.coordinator = coordinator
 	return inbound
+}
+
+func startTestInbound(t *testing.T, inbound *Inbound) error {
+	t.Helper()
+	scope := adapter.NewScope(context.Background(), inbound.logger)
+	t.Cleanup(func() { _ = scope.Close() })
+	return inbound.Start(adapter.StartStateStart, scope)
+}
+
+func TestScopeClosesCaptureAndReleasesMark(t *testing.T) {
+	manager := &testNetworkManager{}
+	runtime := &testRuntime{listeners: newTestListenerSet(t)}
+	coordinator := &runtimeCoordinator{newRuntime: func(context.Context, ebpfinbound.Options) (ebpfinbound.Runtime, error) { return runtime, nil }}
+	inbound := newTestInbound(t, coordinator, manager, "dae-in", 0)
+	scope := adapter.NewScope(context.Background(), inbound.logger)
+	t.Cleanup(func() { _ = scope.Close() })
+	if err := inbound.Start(adapter.StartStateStart, scope); err != nil {
+		t.Fatal(err)
+	}
+	if err := scope.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.closes() != 1 || manager.AutoRedirectOutputMark() != 0 {
+		t.Fatal("scope did not release capture and output mark")
+	}
 }

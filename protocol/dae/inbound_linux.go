@@ -200,7 +200,7 @@ func equalCaptureConfig(left, right ebpfinbound.CaptureConfig) bool {
 		slices.Equal(left.WANInterfaces, right.WANInterfaces)
 }
 
-func (i *Inbound) Start(stage adapter.StartStage) error {
+func (i *Inbound) Start(stage adapter.StartStage, scope *adapter.Scope) error {
 	if stage != adapter.StartStateStart {
 		return nil
 	}
@@ -220,6 +220,7 @@ func (i *Inbound) Start(stage adapter.StartStage) error {
 	}
 	i.startCalled = true
 	i.access.Unlock()
+	scope.Add(i.Close)
 
 	err := i.coordinator.start(i)
 	i.access.Lock()

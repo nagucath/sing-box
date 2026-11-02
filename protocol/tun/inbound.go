@@ -37,38 +37,36 @@ func RegisterInbound(registry *inbound.Registry) {
 }
 
 type Inbound struct {
-	tag                         string
-	ctx                         context.Context
-	router                      adapter.Router
-	networkManager              adapter.NetworkManager
-	logger                      log.ContextLogger
-	tunOptions                  tun.Options
-	udpTimeout                  time.Duration
-	udpMapping                  tun.NATMapping
-	udpFiltering                tun.NATFiltering
-	udpNATMax                   uint32
-	dnsHijackAddress            []netip.Addr
-	dnsHijackByPort             bool
-	stack                       string
-	tunIf                       tun.Tun
-	tunStack                    tun.Stack
-	platformInterface           adapter.PlatformInterface
-	usePlatformInterface        bool
-	platformOptions             option.TunPlatformOptions
-	enableAutoRedirect          bool
-	usePlatformAutoRedirect     bool
-	disableNFTables             bool
-	autoRedirect                tun.AutoRedirect
-	routeRuleSet                []adapter.RuleSet
-	routeExcludeRuleSet         []adapter.RuleSet
-	routeAddressSetAccess       sync.RWMutex
-	routeAddressSet             []*netipx.IPSet
-	routeExcludeAddressSet      []*netipx.IPSet
-	autoRedirectMarkRegistered  bool
-	closeOnce                   sync.Once
-	closeErr                    error
-	routeRuleSetCallback        []*list.Element[adapter.RuleSetUpdateCallback]
-	routeExcludeRuleSetCallback []*list.Element[adapter.RuleSetUpdateCallback]
+	tag                        string
+	ctx                        context.Context
+	router                     adapter.Router
+	networkManager             adapter.NetworkManager
+	logger                     log.ContextLogger
+	tunOptions                 tun.Options
+	udpTimeout                 time.Duration
+	udpMapping                 tun.NATMapping
+	udpFiltering               tun.NATFiltering
+	udpNATMax                  uint32
+	dnsHijackAddress           []netip.Addr
+	dnsHijackByPort            bool
+	stack                      string
+	tunIf                      tun.Tun
+	tunStack                   tun.Stack
+	platformInterface          adapter.PlatformInterface
+	usePlatformInterface       bool
+	platformOptions            option.TunPlatformOptions
+	enableAutoRedirect         bool
+	usePlatformAutoRedirect    bool
+	disableNFTables            bool
+	autoRedirect               tun.AutoRedirect
+	routeRuleSet               []adapter.RuleSet
+	routeExcludeRuleSet        []adapter.RuleSet
+	routeAddressSetAccess      sync.RWMutex
+	routeAddressSet            []*netipx.IPSet
+	routeExcludeAddressSet     []*netipx.IPSet
+	autoRedirectMarkRegistered bool
+	closeOnce                  sync.Once
+	closeErr                   error
 }
 
 func NewInbound(ctx context.Context, router adapter.Router, logger log.ContextLogger, tag string, options option.TunInboundOptions) (adapter.Inbound, error) {
@@ -339,6 +337,7 @@ func (t *Inbound) Tag() string {
 func (t *Inbound) Start(stage adapter.StartStage, scope *adapter.Scope) error {
 	switch stage {
 	case adapter.StartStateInitialize:
+		scope.Add(t.Close)
 		if t.tunOptions.DNSModeOrDefault() != tun.DNSModeDisabled && len(t.tunOptions.DNSAddress) == 0 {
 			inet4DNSAddress, _ := t.tunOptions.Inet4DNSAddress()
 			inet6DNSAddress, _ := t.tunOptions.Inet6DNSAddress()
@@ -479,7 +478,7 @@ func (t *Inbound) Start(stage adapter.StartStage, scope *adapter.Scope) error {
 		if err != nil {
 			return E.Cause(err, "configure tun interface")
 		}
-		scope.Add(tunInterface.Close)
+
 		t.logger.Trace("creating stack")
 		t.tunIf = tunInterface
 		if t.platformInterface != nil {
@@ -519,7 +518,7 @@ func (t *Inbound) Start(stage adapter.StartStage, scope *adapter.Scope) error {
 		if err != nil {
 			return err
 		}
-		scope.Add(tunStack.Close)
+
 		t.tunStack = tunStack
 		t.logger.Info("started at ", t.tunOptions.Name)
 	case adapter.StartStatePostStart:
@@ -540,7 +539,7 @@ func (t *Inbound) Start(stage adapter.StartStage, scope *adapter.Scope) error {
 			t.networkManager.RegisterHostPort(routedPort)
 		}
 		if t.autoRedirect != nil {
-			scope.Add(t.autoRedirect.Close)
+
 			monitor.Start("initialize auto-redirect")
 			err = t.autoRedirect.Start()
 			monitor.Finish()

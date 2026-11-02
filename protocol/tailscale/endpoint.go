@@ -370,7 +370,6 @@ func (t *Endpoint) start(scope *adapter.Scope) (retErr error) {
 		if err != nil {
 			return err
 		}
-		t.systemTunDevice = wgTunDevice
 		t.systemDialer = systemDialer
 		t.server.DataPlaneDial = func(ctx context.Context, network, address string) (net.Conn, error) {
 			if err := t.resume(ctx); err != nil {
