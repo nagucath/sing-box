@@ -2,6 +2,8 @@ name: Rebased network release
 on:
   push:
     branches: [release/v1.15.0-dev.20261102-wigner.1]
+    paths-ignore:
+      - .github/workflows/upstream-materialize.yml
 permissions:
   contents: read
 concurrency:

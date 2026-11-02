@@ -1,6 +1,9 @@
 name: Generate rebased vendor
 on:
-  workflow_dispatch:
+  push:
+    branches: [release/v1.15.0-dev.20261102-wigner.1]
+    paths:
+      - .github/workflows/upstream-materialize.yml
 permissions:
   contents: read
 concurrency:
@@ -25,6 +28,7 @@ jobs:
           python3 tools/vendor/verify.py
       - name: Export generated changes
         run: |
+          git add --intent-to-add --force vendor
           git diff --binary -- go.mod go.sum deps/vendor-lock.json vendor > "$RUNNER_TEMP/regenerated-vendor.patch"
       - uses: actions/upload-artifact@v4
         with:
