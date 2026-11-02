@@ -3,20 +3,20 @@
     {
       "module": "github.com/daeuniverse/dae/ebpfinbound",
       "name": "dae-ebpfinbound",
-      "result_tree": "3f81eb403c6a60d02c9c9967b24c873329abb750",
-      "source_commit": "5db27a0028d36e7847bd3796497df952337a20e2"
+      "result_tree": "d41cb85514ffe27bed1dc3e8c5ca60041c8edbe7",
+      "source_commit": "dbae2e82d3ed5324e1648548720f8bbc8cde3882"
     },
     {
       "module": "github.com/sagernet/tailscale",
       "name": "tailscale",
-      "result_tree": "415894e6cc875a159bf5ddb513205e88032d9c44",
-      "source_commit": "35e61219deddbf10d8ab8eab86df59c4d62313ea"
+      "result_tree": "ec6bf4840618bb6d6efef3dffdbf5d76875cd38c",
+      "source_commit": "670967df7dbf74036e4fd354f1b803ff194b4723"
     }
   ],
   "generated_by": "tools/vendor/materialize.py",
   "lock": "deps/vendor-lock.json",
   "projection": {
-    "entries": 9032,
+    "entries": 9038,
     "excluded_repository_metadata": [
       {
         "kind": "file",
@@ -602,9 +602,9 @@
       }
     ],
     "format": "go-mod-vendor",
-    "modules_txt_sha256": "d92b4576a50749ad9e953e24af68646e84012af3a4d7280b5fbbf807b4466c7d",
+    "modules_txt_sha256": "4b189cf1eed5772fc94f6db8f3b53f2e92b8b870bc6b4a160527d8bf7d546342",
     "path": "vendor",
-    "tree_sha256": "53f3adf62b72538dfbad690aa67957e7939bc83d16c2fe208c3f5368ccea83a6"
+    "tree_sha256": "866f4af5173b32be4054e174f952445787ad68dcaec726b1e5dfe4c6544772f9"
   },
   "schema_version": "sing-box-vendor-manifest/v2"
 }

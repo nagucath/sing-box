@@ -46,6 +46,7 @@ type LinuxTUN interface {
 	BatchRead(buffers [][]byte, offset int, readN []int) (n int, err error)
 	BatchWrite(buffers [][]byte, offset int) (n int, err error)
 	TXChecksumOffload() bool
+	FlushDNSCache()
 }
 
 type DarwinTUN interface {
@@ -133,9 +134,16 @@ type Options struct {
 
 func (o *Options) DNSModeOrDefault() string {
 	if o.DNSMode == "" {
-		return DNSModeHijack
+		if o.AutoRoute {
+			return DNSModeHijack
+		}
+		return DNSModeDisabled
 	}
 	return o.DNSMode
+}
+
+func (o *Options) AutoRedirectOutputMarkOrDefault() uint32 {
+	return effectiveMark(o.AutoRedirectOutputMark, DefaultAutoRedirectOutputMark, DefaultAutoRedirectOutputMarkAndroid)
 }
 
 func (o *Options) DNSServerAddress() ([]netip.Addr, error) {

@@ -21,10 +21,11 @@ type Go struct {
 	mtu                    int
 	handler                Handler
 	logger                 logger.Logger
+	inet4Address           netip.Addr
+	inet6Address           netip.Addr
 	broadcastAddr          netip.Addr
 	inet4LoopbackAddress   []netip.Addr
 	inet6LoopbackAddress   []netip.Addr
-	udpTimeout             time.Duration
 	icmpTimeout            time.Duration
 	udpNATOptions          UDPNatOptions
 	memoryPressure         func() MemoryPressure
@@ -56,7 +57,6 @@ func NewGo(options StackOptions) (*Go, error) {
 		broadcastAddr:        BroadcastAddr(options.TunOptions.Inet4Address),
 		inet4LoopbackAddress: options.TunOptions.Inet4LoopbackAddress,
 		inet6LoopbackAddress: options.TunOptions.Inet6LoopbackAddress,
-		udpTimeout:           options.UDPTimeout,
 		icmpTimeout:          options.ICMPTimeout,
 		udpNATOptions: UDPNatOptions{
 			Timeout:         options.UDPTimeout,
@@ -70,7 +70,15 @@ func NewGo(options StackOptions) (*Go, error) {
 			flows:      make(map[flowKey]*GoConn),
 			udpSockets: make(map[netip.AddrPort]*GoUDPConn),
 			listeners:  make(map[netip.AddrPort]*GoListener),
+			tcpLocals:  make(map[netip.AddrPort]uint32),
+			reserved:   make(map[goPortKey]struct{}),
 		},
+	}
+	if len(options.TunOptions.Inet4Address) > 0 {
+		stack.inet4Address = options.TunOptions.Inet4Address[0].Addr()
+	}
+	if len(options.TunOptions.Inet6Address) > 0 {
+		stack.inet6Address = options.TunOptions.Inet6Address[0].Addr()
 	}
 	memoryTun, isMemoryTun := options.Tun.(*MemoryTun)
 	if isMemoryTun {
@@ -135,7 +143,7 @@ func (s *Go) Start() error {
 			}
 			udpNats[index] = udpNat
 		}
-		s.dispatcher = NewForwardDispatcher(s.handler, &goWriteback{platformIO: queues[0]}, s.logger, s.udpTimeout, s.icmpTimeout)
+		s.dispatcher = NewForwardDispatcher(s.handler, &goWriteback{platformIO: queues[0]}, s.logger, uint32(s.mtu), s.udpNATOptions, s.icmpTimeout)
 	}
 	s.udpNats = udpNats
 	if natCount > 1 {
@@ -162,6 +170,35 @@ func goCloseQueues(queues []goPlatformIO) error {
 	return err
 }
 
+func (s *Go) RoutedPort() {
+}
+
+func (s *Go) PortAddresses() (netip.Addr, netip.Addr) {
+	return s.inet4Address, s.inet6Address
+}
+
+func (s *Go) PortMTU() uint32 {
+	return uint32(s.mtu)
+}
+
+func (s *Go) AttachReturn(returnPath Return) error {
+	return s.dispatcher.attachReturn(returnPath)
+}
+
+func (s *Go) DetachReturn(returnPath Return) error {
+	s.dispatcher.detachReturn(returnPath)
+	return nil
+}
+
+func (s *Go) WritePackets(packets [][]byte) error {
+	platformIO := s.engines[0].platformIO
+	var writeErr error
+	for _, packet := range packets {
+		writeErr = E.Errors(writeErr, goIgnoreDropped(platformIO.writeDatagram(packet, ForwardFrameMeta{})))
+	}
+	return writeErr
+}
+
 func (s *Go) HasEndpoint(protocol uint8, local, remote netip.AddrPort) bool {
 	if s.closed.Load() || !local.IsValid() || !remote.IsValid() {
 		return false
@@ -184,21 +221,31 @@ func (s *Go) HasEndpoint(protocol uint8, local, remote netip.AddrPort) bool {
 	}
 }
 
+type goPortKey struct {
+	protocol uint8
+	local    netip.AddrPort
+}
+
 type goFlowDirectory struct {
 	access     sync.RWMutex
 	flows      map[flowKey]*GoConn
 	udpFlows   map[udpNatSessionKey]*GoPacketConn
 	udpSockets map[netip.AddrPort]*GoUDPConn
 	listeners  map[netip.AddrPort]*GoListener
+	tcpLocals  map[netip.AddrPort]uint32
+	reserved   map[goPortKey]struct{}
 }
 
-func (d *goFlowDirectory) insertListener(listener *GoListener) {
-	d.access.Lock()
+func (d *goFlowDirectory) reservedLocked(protocol uint8, local netip.AddrPort) bool {
+	_, reserved := d.reserved[goPortKey{protocol: protocol, local: local}]
+	return reserved
+}
+
+func (d *goFlowDirectory) insertListenerLocked(listener *GoListener) {
 	if len(listener.engine.stack.engines) > 1 {
 		listener.engine.tcpListeners[listener.local] = listener
 	}
 	d.listeners[listener.local] = listener
-	d.access.Unlock()
 }
 
 func (d *goFlowDirectory) removeListener(listener *GoListener) {
@@ -219,13 +266,11 @@ func (d *goFlowDirectory) lookupListener(local netip.AddrPort) *GoListener {
 	return listener
 }
 
-func (d *goFlowDirectory) insertUDPSocket(socket *GoUDPConn) {
-	d.access.Lock()
+func (d *goFlowDirectory) insertUDPSocketLocked(socket *GoUDPConn) {
 	if len(socket.engine.stack.engines) > 1 {
 		socket.engine.udpSockets[socket.local] = socket
 	}
 	d.udpSockets[socket.local] = socket
-	d.access.Unlock()
 }
 
 func (d *goFlowDirectory) removeUDPSocket(socket *GoUDPConn) {
@@ -248,11 +293,19 @@ func (d *goFlowDirectory) lookupUDPSocket(local netip.AddrPort) *GoUDPConn {
 
 func (d *goFlowDirectory) insert(key flowKey, conn *GoConn) {
 	d.access.Lock()
+	d.insertLocked(key, conn)
+	d.access.Unlock()
+}
+
+func (d *goFlowDirectory) insertLocked(key flowKey, conn *GoConn) {
 	if len(conn.engine.stack.engines) > 1 {
 		conn.engine.flows[key] = conn
 	}
+	_, exists := d.flows[key]
+	if !exists {
+		d.tcpLocals[key.destination]++
+	}
 	d.flows[key] = conn
-	d.access.Unlock()
 }
 
 func (d *goFlowDirectory) remove(key flowKey, conn *GoConn) {
@@ -262,6 +315,11 @@ func (d *goFlowDirectory) remove(key flowKey, conn *GoConn) {
 	}
 	if d.flows[key] == conn {
 		delete(d.flows, key)
+		if d.tcpLocals[key.destination] > 1 {
+			d.tcpLocals[key.destination]--
+		} else {
+			delete(d.tcpLocals, key.destination)
+		}
 	}
 	d.access.Unlock()
 }
@@ -271,6 +329,32 @@ func (d *goFlowDirectory) lookup(key flowKey) *GoConn {
 	conn := d.flows[key]
 	d.access.RUnlock()
 	return conn
+}
+
+func (s *Go) ReserveSelector(protocol uint8, address netip.AddrPort) bool {
+	directory := &s.directory
+	directory.access.Lock()
+	defer directory.access.Unlock()
+	switch protocol {
+	case uint8(header.UDPProtocolNumber):
+		if directory.udpSockets[address] != nil {
+			return false
+		}
+	case uint8(header.TCPProtocolNumber):
+		if directory.listeners[address] != nil || directory.tcpLocals[address] > 0 {
+			return false
+		}
+	default:
+		return true
+	}
+	directory.reserved[goPortKey{protocol: protocol, local: address}] = struct{}{}
+	return true
+}
+
+func (s *Go) ReleaseSelector(protocol uint8, address netip.AddrPort) {
+	s.directory.access.Lock()
+	delete(s.directory.reserved, goPortKey{protocol: protocol, local: address})
+	s.directory.access.Unlock()
 }
 
 func (s *Go) ResetNetwork() {

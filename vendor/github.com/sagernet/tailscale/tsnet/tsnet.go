@@ -369,6 +369,7 @@ type Server struct {
 	Dialer           N.Dialer
 	ControlFunc      func(network, address string, conn syscall.RawConn) error
 	ListenPacketFunc func(ctx context.Context, network, address string) (nettype.PacketConn, error)
+	DefaultRouteFunc func() (netmon.DefaultRouteDetails, error)
 
 	LookupHook          dnscache.LookupHookFunc
 	PeerDNSQueryHandler ipnlocal.PeerDNSQueryHandler
@@ -941,7 +942,7 @@ func (s *Server) start() (reterr error) {
 		return err
 	}
 
-	s.netMon, err = netmon.New(sys.Bus.Get(), tsLogf, netmon.Hooks{Dialer: s.Dialer, Control: s.ControlFunc, ListenPacket: s.ListenPacketFunc})
+	s.netMon, err = netmon.New(sys.Bus.Get(), tsLogf, netmon.Hooks{Dialer: s.Dialer, Control: s.ControlFunc, ListenPacket: s.ListenPacketFunc, DefaultRoute: s.DefaultRouteFunc})
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,6 @@
 name: Generate rebased vendor
 on:
-  push:
-    branches: [release/v1.15.0-dev.20261102-wigner.1]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
