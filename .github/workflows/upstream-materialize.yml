@@ -4,6 +4,9 @@ on:
     branches: [release/v1.15.0-dev.20261102-wigner.1]
 permissions:
   contents: read
+concurrency:
+  group: upstream-materialize-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   generate:
     runs-on: ubuntu-24.04
@@ -29,3 +32,8 @@ jobs:
           name: regenerated-vendor-${{ github.sha }}
           path: ${{ runner.temp }}/regenerated-vendor.patch
           if-no-files-found: error
+      - name: Verify rebased Linux integration
+        run: |
+          tags="with_dae,$(cat release/DEFAULT_BUILD_TAGS_OTHERS)"
+          go test -mod=vendor -race -tags "$tags" -count=1 ./common/tls ./protocol/dae ./protocol/tailscale ./protocol/tun ./route/...
+          go vet -mod=vendor -tags "$tags" ./common/tls ./protocol/dae ./protocol/tailscale ./protocol/tun ./route/...
