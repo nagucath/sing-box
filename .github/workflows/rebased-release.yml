@@ -1,5 +1,6 @@
 name: Rebased network build
 on:
+  workflow_dispatch:
   push:
     branches: [rebase/incus-hotspot-20261119]
 permissions:

@@ -1,5 +1,6 @@
 name: Generate rebased vendor
 on:
+  workflow_dispatch:
   push:
     branches: [audit/incus-hotspot-vendor-20261119]
 permissions:
