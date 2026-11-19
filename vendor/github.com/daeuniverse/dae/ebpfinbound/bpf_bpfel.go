@@ -35,7 +35,7 @@ type bpfConnState struct {
 	Pname              [16]uint8
 	Pid                uint32
 	RoutingEpochSlot   uint8
-	PaddingAfterPid    uint8
+	DirectPassthrough  uint8
 	DatapathGeneration uint16
 }
 

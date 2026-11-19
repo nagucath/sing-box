@@ -3,8 +3,8 @@
     {
       "module": "github.com/daeuniverse/dae/ebpfinbound",
       "name": "dae-ebpfinbound",
-      "result_tree": "d41cb85514ffe27bed1dc3e8c5ca60041c8edbe7",
-      "source_commit": "dbae2e82d3ed5324e1648548720f8bbc8cde3882"
+      "result_tree": "32458407a787480703aeb5df029bf6166f979c39",
+      "source_commit": "e35410568009a7e1b49090aaba265c9992fc6b46"
     },
     {
       "module": "github.com/sagernet/tailscale",
@@ -16,7 +16,7 @@
   "generated_by": "tools/vendor/materialize.py",
   "lock": "deps/vendor-lock.json",
   "projection": {
-    "entries": 9038,
+    "entries": 9074,
     "excluded_repository_metadata": [
       {
         "kind": "file",
@@ -221,6 +221,12 @@
         "path": "github.com/mdlayher/netlink/.gitignore",
         "sha256": "664684527e3391e45e6559b7a42179a019e7d8acd77abf7cd0851b7282365210",
         "size": 78
+      },
+      {
+        "kind": "file",
+        "path": "github.com/metacubex/utls/.gitignore",
+        "sha256": "4bea837af7a5e12ad6e5eea39cb3b8d482ccc1edf99a3dc6b07e2eedf197b93a",
+        "size": 321
       },
       {
         "kind": "file",
@@ -602,9 +608,9 @@
       }
     ],
     "format": "go-mod-vendor",
-    "modules_txt_sha256": "4b189cf1eed5772fc94f6db8f3b53f2e92b8b870bc6b4a160527d8bf7d546342",
+    "modules_txt_sha256": "9e2b72e77e35ee3d3e5efca5c9b15dbba4a53b16e3f7ef9115740c19db9266ed",
     "path": "vendor",
-    "tree_sha256": "866f4af5173b32be4054e174f952445787ad68dcaec726b1e5dfe4c6544772f9"
+    "tree_sha256": "48eb0a743a94938d3c1decd20eb94435654dcec5eae6698cc34bacc45b388804"
   },
   "schema_version": "sing-box-vendor-manifest/v2"
 }

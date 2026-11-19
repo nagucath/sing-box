@@ -290,7 +290,7 @@ func (e *goEngine) run() {
 					return
 				}
 				e.stack.logger.Debug(E.Cause(err, "go: engine read"))
-				readRetry.Wait(err)
+				readRetry.Wait()
 			} else {
 				readRetry.Reset()
 			}
@@ -414,9 +414,6 @@ func (e *goEngine) releaseReadBuffers() {
 	clear(e.frames)
 	e.udpUserData.packet = nil
 	clear(e.transmitFrame[:])
-	clear(e.spliceSegments[:cap(e.spliceSegments)])
-	clear(e.spliceIovecs[:cap(e.spliceIovecs)])
-	clear(e.controlSegments[:cap(e.controlSegments)])
 	e.packetSlots.sleep()
 	e.gsoSlots.sleep()
 	clear(e.gsoSegments[:])

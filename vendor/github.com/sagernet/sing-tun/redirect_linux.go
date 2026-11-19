@@ -2,6 +2,7 @@ package tun
 
 import (
 	"context"
+	"math"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/sagernet/netlink"
 	"github.com/sagernet/nftables"
+	"github.com/sagernet/nftables/binaryutil"
+	"github.com/sagernet/nftables/expr"
 	"github.com/sagernet/sing/common"
 	"github.com/sagernet/sing/common/control"
 	E "github.com/sagernet/sing/common/exceptions"
@@ -43,6 +46,7 @@ type autoRedirect struct {
 	bypassIncludeAddresses       []netip.Prefix
 	bypassExcludeAddresses       []netip.Prefix
 	redirectServer               *RedirectServer
+	redirectDNSServer            *redirectDNSServer
 	enableIPv4                   bool
 	enableIPv6                   bool
 	iptablesPath                 string
@@ -50,6 +54,8 @@ type autoRedirect struct {
 	useNFTables                  bool
 	androidVPNService            bool
 	nfqueueHandler               *nfqueueHandler
+	preroutingReject             bool
+	fibAddrType                  bool
 	iptablesAccess               sync.Mutex
 	iptablesLocalChains          []iptablesLocalChain
 	redirectRouteTableIndex      int
@@ -98,17 +104,35 @@ func NewAutoRedirect(options AutoRedirectOptions) (AutoRedirect, error) {
 		}
 		*mark.field = value
 	}
+	err := r.initializeBackend()
+	if err != nil {
+		return nil, err
+	}
+	r.tunOptions.AutoRedirectInputMarkMask = r.packetMarkMask(r.tunOptions.AutoRedirectInputMark)
 	return r, nil
 }
 
 func (r *autoRedirect) Start() error {
-	err := r.initializeBackend()
+	err := r.startRedirectServer()
 	if err != nil {
 		return err
 	}
-	err = r.startRedirectServer()
-	if err != nil {
-		return err
+	if r.redirectServer != nil && r.useNFTables && r.enableIPv6 && r.tunOptions.DNSModeOrDefault() == DNSModeHijack {
+		var dnsServers []netip.Addr
+		dnsServers, err = r.tunOptions.Inet6DNSAddress()
+		if err != nil {
+			_ = r.Close()
+			return err
+		}
+		if len(dnsServers) > 0 {
+			server := newRedirectDNSServer(r.ctx, r.handler, r.logger, dnsServers[0])
+			err = runInNetworkNamespace(r.tunOptions.NetNs, server.Start)
+			if err != nil {
+				_ = r.Close()
+				return E.Cause(err, "start redirect DNS server")
+			}
+			r.redirectDNSServer = server
+		}
 	}
 	err = r.startNFQueue()
 	if err != nil {
@@ -237,7 +261,12 @@ func (r *autoRedirect) initializeBackend() error {
 	if r.useNFTables {
 		err = runInNetworkNamespace(r.tunOptions.NetNs, r.initializeNFTables)
 		if err != nil {
-			return E.Cause(err, "missing nftables support")
+			_, lookErr := exec.LookPath("iptables")
+			if r.tunOptions.NetNs != "" || r.tunOptions.ExcludeMPTCP || lookErr != nil {
+				return E.Cause(err, "missing nftables support")
+			}
+			r.logger.Warn("nftables not available, fallback to iptables: ", err)
+			r.useNFTables = false
 		}
 	}
 	if len(r.tunOptions.Inet4Address) > 0 {
@@ -323,10 +352,6 @@ func (r *autoRedirect) startRedirectServer() error {
 const tcpOptionMultipathTCP = 30
 
 func (r *autoRedirect) startNFQueue() error {
-	var markMask uint32
-	if !r.useNFTables {
-		markMask = r.effectiveMarkMask()
-	}
 	var tproxyMark uint32
 	if r.tproxyEnabled() {
 		tproxyMark = r.tunOptions.AutoRedirectTProxyMark
@@ -339,7 +364,7 @@ func (r *autoRedirect) startNFQueue() error {
 		outputMark: r.tunOptions.AutoRedirectOutputMark,
 		resetMark:  r.tunOptions.AutoRedirectResetMark,
 		tproxyMark: tproxyMark,
-		markMask:   markMask,
+		markMask:   r.packetMarkMask,
 		// A queue verdict leaves the whole iptables mangle hook, while nftables base chains
 		// continue on NF_ACCEPT.
 		repeatOnAccept: !r.useNFTables,
@@ -379,6 +404,15 @@ func (r *autoRedirect) updateIPTablesNetwork() error {
 }
 
 func (r *autoRedirect) Close() error {
+	var err error
+	if r.redirectServer != nil {
+		err = r.redirectServer.Close()
+		r.redirectServer = nil
+	}
+	if r.redirectDNSServer != nil {
+		err = E.Errors(err, r.redirectDNSServer.Close())
+		r.redirectDNSServer = nil
+	}
 	if r.useNFTables {
 		_ = runInNetworkNamespace(r.tunOptions.NetNs, func() error {
 			r.cleanupNFTables()
@@ -402,12 +436,7 @@ func (r *autoRedirect) Close() error {
 		r.nfqueueHandler.Close()
 		r.nfqueueHandler = nil
 	}
-	if r.redirectServer != nil {
-		err := r.redirectServer.Close()
-		r.redirectServer = nil
-		return err
-	}
-	return nil
+	return err
 }
 
 func (r *autoRedirect) initializeNFTables() error {
@@ -419,6 +448,29 @@ func (r *autoRedirect) initializeNFTables() error {
 	_, err = nft.ListTablesOfFamily(nftables.TableFamilyIPv4)
 	if err != nil {
 		return err
+	}
+	err = r.nftablesProbe(nftables.ChainTypeNAT)
+	if err != nil {
+		return E.Cause(err, "create inet nat chain (Linux 5.2 or later is required)")
+	}
+	err = r.nftablesProbe(nftables.ChainTypeFilter, &expr.Reject{Type: unix.NFT_REJECT_TCP_RST})
+	if err != nil {
+		r.logger.Debug("reject in prerouting is not supported (Linux 5.9 or later is required), reject in input and forward instead: ", err)
+	} else {
+		r.preroutingReject = true
+	}
+	err = r.nftablesProbe(nftables.ChainTypeFilter,
+		&expr.Fib{Register: 1, FlagDADDR: true, ResultADDRTYPE: true},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: binaryutil.NativeEndian.PutUint32(unix.RTN_LOCAL)},
+	)
+	if err != nil {
+		r.logger.Warn("fib expression not available, local addresses are excluded by address sets only (missing nft_fib_inet kernel module?): ", err)
+	} else {
+		r.fibAddrType = true
+	}
+	err = r.nftablesProbe(nftables.ChainTypeFilter, &expr.Queue{Num: r.effectiveNFQueue(), Flag: expr.QueueFlagBypass})
+	if err != nil {
+		return E.Cause(err, "create queue rule (missing nft_queue kernel module?)")
 	}
 	r.useNFTables = true
 	return nil
@@ -446,6 +498,23 @@ const (
 
 func (r *autoRedirect) effectiveMarkMask() uint32 {
 	return r.tunOptions.AutoRedirectInputMark | r.tunOptions.AutoRedirectOutputMark | r.tunOptions.AutoRedirectResetMark | r.tunOptions.AutoRedirectTProxyMark
+}
+
+func (r *autoRedirect) packetMarkMask(mark uint32) uint32 {
+	if r.useNFTables && (mark == r.tunOptions.AutoRedirectInputMark || mark == r.tunOptions.AutoRedirectResetMark) {
+		return math.MaxUint32
+	}
+	return r.effectiveMarkMask()
+}
+
+func (r *autoRedirect) tunFlowMark() uint32 {
+	options := r.tunOptions
+	for _, mark := range []uint32{r.effectiveMarkMask(), options.AutoRedirectResetMark} {
+		if mark != options.AutoRedirectInputMark && mark != options.AutoRedirectOutputMark && mark != options.AutoRedirectTProxyMark {
+			return mark
+		}
+	}
+	return options.AutoRedirectInputMark
 }
 
 func (r *autoRedirect) effectiveNFQueue() uint16 {

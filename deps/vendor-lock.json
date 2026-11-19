@@ -12,52 +12,57 @@
         {
           "order": 1,
           "path": "patches/dae/0001-ebpfinbound-runtime.patch",
-          "sha256": "5c61ee551c56c5ac2f6fa35d581a83d4a0ddc485b94b998019d5d070f628ddc6"
+          "sha256": "b5a3edb8e2e441d747276a4ccea47d0ee8b74b9230320f176ead7f3b112aea57"
         },
         {
           "order": 2,
           "path": "patches/dae/0002-namespace-identity.patch",
-          "sha256": "d103332a441ee6ac272eaf6cf623456e845f34d367015afda97a9027faea5562"
+          "sha256": "aebac8f61464fbbea8aaa21e0d38e7b27796e6b402d64040d9bae8c15bed512b"
         },
         {
           "order": 3,
           "path": "patches/dae/0003-kernel-mark-bypass.patch",
-          "sha256": "6873f2a1ce80e68b71a07e3531963eacd5dfe297589d627401de42fe1350c3eb"
+          "sha256": "a3815d4832583ab1690eaac2bc641794cd06b2145d1db993e2a188f3c7d4f281"
         },
         {
           "order": 4,
           "path": "patches/dae/0004-authoritative-output-mark.patch",
-          "sha256": "a4eb532b5881ddbde10e23d04d80ab7b5bf9ba77f44a36e71bfc27a125d40526"
+          "sha256": "74c49b5560de14d8efd1439b188f0d6e0fe18848407720338fcbbc795b3a9ede"
         },
         {
           "order": 5,
           "path": "patches/dae/0005-connected-lan-replies.patch",
-          "sha256": "8f3a782baac28005ec0c04fee155da6535a080ce1d8ec27675c4d4d3ec91e074"
+          "sha256": "bff7efb8fc373308799ef285087e592016588795b7507f1a7ea1f4b9ce63b0fd"
         },
         {
           "order": 6,
           "path": "patches/dae/0006-interface-recreation.patch",
-          "sha256": "40e450376e91e2580f23c8c4e060f9aa6b8354ecc5268ae22b53a65d3a5e8a32"
+          "sha256": "ef04c407c2ec37f34950cabc4c7a06ba20d85e53ba179e2ed765fa6f25cc27ea"
         },
         {
           "order": 7,
           "path": "patches/dae/0007-split-datapath-roles.patch",
-          "sha256": "6258052fb1b6f33c72f5c58eb3d6a09ba68d58e743de74dc397eae8136ea179e"
+          "sha256": "5e555f1bc60665896a5aacd54909c324c2fac025133f179202724f7e2354180d"
         },
         {
           "order": 8,
           "path": "patches/dae/0008-redirect-index-fallback.patch",
-          "sha256": "07fb482b519cd45b5713716b7e8e5992ddb8a3f99538aae62cc7be78af4064ba"
+          "sha256": "47fbb4514475c5c0e34b2be3d2abe24ac346c054538e05c9246aee741f1f623b"
         },
         {
           "order": 9,
-          "path": "patches/dae/0009-regenerated-bpf.patch",
-          "sha256": "cf294f716110b55eeb7724b39f65caa6ce3e47ff4239ddea566821dce1b4239b"
+          "path": "patches/dae/0009-native-lan-dhcp.patch",
+          "sha256": "075c391bb8586b5f4c820b46c24b2a5adaf3cefa9effaff15f778085e8d87b97"
+        },
+        {
+          "order": 10,
+          "path": "patches/dae/0010-regenerated-bpf.patch",
+          "sha256": "02b359cb70d0f551e4c012b7b9f29f9c2ab25e7ca18fe237a2cb2633967d83bd"
         }
       ],
-      "result_tree": "d41cb85514ffe27bed1dc3e8c5ca60041c8edbe7",
+      "result_tree": "32458407a787480703aeb5df029bf6166f979c39",
       "source": {
-        "commit": "dbae2e82d3ed5324e1648548720f8bbc8cde3882",
+        "commit": "e35410568009a7e1b49090aaba265c9992fc6b46",
         "path": "third_party/dae"
       }
     },
@@ -93,7 +98,7 @@
     }
   ],
   "projection": {
-    "entries": 9038,
+    "entries": 9074,
     "excluded_repository_metadata": [
       {
         "kind": "file",
@@ -298,6 +303,12 @@
         "path": "github.com/mdlayher/netlink/.gitignore",
         "sha256": "664684527e3391e45e6559b7a42179a019e7d8acd77abf7cd0851b7282365210",
         "size": 78
+      },
+      {
+        "kind": "file",
+        "path": "github.com/metacubex/utls/.gitignore",
+        "sha256": "4bea837af7a5e12ad6e5eea39cb3b8d482ccc1edf99a3dc6b07e2eedf197b93a",
+        "size": 321
       },
       {
         "kind": "file",
@@ -679,9 +690,9 @@
       }
     ],
     "format": "go-mod-vendor",
-    "modules_txt_sha256": "4b189cf1eed5772fc94f6db8f3b53f2e92b8b870bc6b4a160527d8bf7d546342",
+    "modules_txt_sha256": "9e2b72e77e35ee3d3e5efca5c9b15dbba4a53b16e3f7ef9115740c19db9266ed",
     "path": "vendor",
-    "tree_sha256": "866f4af5173b32be4054e174f952445787ad68dcaec726b1e5dfe4c6544772f9"
+    "tree_sha256": "48eb0a743a94938d3c1decd20eb94435654dcec5eae6698cc34bacc45b388804"
   },
   "schema_version": "sing-box-vendor-lock/v2"
 }

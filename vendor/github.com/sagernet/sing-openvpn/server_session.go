@@ -64,9 +64,9 @@ func (s *tlsServer) newSession(packetConnection proto.PacketConnection) *tlsServ
 	handshakeWindow := s.parent.options.Timing.HandWindow
 	session := &tlsServerSession{
 		tlsPeerSession: &tlsPeerSession{
-			role:                    tlsRoleServer,
 			packetConnection:        packetConnection,
 			dataTransportHeaderSize: dataTransportHeaderSize(s.parent.protocol),
+			authDeferredWindow:      authDeferredExpireWindow(handshakeWindow, s.parent.options.Timing.RenegotiationInterval),
 			handshakeWindow:         handshakeWindow,
 		},
 		server:            s,
@@ -105,6 +105,11 @@ func (s *tlsServer) newSession(packetConnection proto.PacketConnection) *tlsServ
 		},
 		onRenegotiated: func(_ *tlsPeerSession, keyID uint8) {
 			session.noteRenegotiated(keyID)
+		},
+		onRenegotiationFailed: func(_ *tlsPeerSession, err error) {
+			if E.IsMulti(err, ErrAuthenticationFailed) {
+				_ = session.Close()
+			}
 		},
 	}
 	session.hooks = tlsPeerHooks{

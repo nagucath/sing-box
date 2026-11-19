@@ -721,7 +721,7 @@ func (h *Handle) routeHandle(route *Route, req *nl.NetlinkRequest, msg *nl.RtMsg
 		return nil, fmt.Errorf("Either Dst.IP, Src.IP or Gw must be set")
 	}
 
-	family := -1
+	family := FAMILY_ALL
 	var rtAttrs []*nl.RtAttr
 
 	if route.Dst != nil && route.Dst.IP != nil {
@@ -744,7 +744,7 @@ func (h *Handle) routeHandle(route *Route, req *nl.NetlinkRequest, msg *nl.RtMsg
 	}
 
 	if route.NewDst != nil {
-		if family != -1 && family != route.NewDst.Family() {
+		if family != FAMILY_ALL && family != route.NewDst.Family() {
 			return nil, fmt.Errorf("new destination and destination are not the same address family")
 		}
 		buf, err := route.NewDst.Encode()
@@ -773,7 +773,7 @@ func (h *Handle) routeHandle(route *Route, req *nl.NetlinkRequest, msg *nl.RtMsg
 
 	if route.Src != nil && route.Src.IP != nil {
 		srcFamily := nl.GetIPFamily(route.Src.IP)
-		if family != -1 && family != srcFamily {
+		if family != FAMILY_ALL && family != srcFamily {
 			return nil, fmt.Errorf("source and destination ip are not the same IP family")
 		}
 		family = srcFamily
@@ -783,7 +783,7 @@ func (h *Handle) routeHandle(route *Route, req *nl.NetlinkRequest, msg *nl.RtMsg
 		} else {
 			srcData = route.Src.IP.To16()
 		}
-		srcLen, _ := route.Dst.Mask.Size()
+		srcLen, _ := route.Src.Mask.Size()
 		msg.Src_len = uint8(srcLen)
 		// The commonly used src ip for routes is actually PREFSRC
 		rtAttrs = append(rtAttrs, nl.NewRtAttr(unix.RTA_PREFSRC, srcData))
@@ -791,7 +791,7 @@ func (h *Handle) routeHandle(route *Route, req *nl.NetlinkRequest, msg *nl.RtMsg
 
 	if route.Gw != nil {
 		gwFamily := nl.GetIPFamily(route.Gw)
-		if family != -1 && family != gwFamily {
+		if family != FAMILY_ALL && family != gwFamily {
 			return nil, fmt.Errorf("gateway, source, and destination ip are not the same IP family")
 		}
 		family = gwFamily
@@ -825,7 +825,7 @@ func (h *Handle) routeHandle(route *Route, req *nl.NetlinkRequest, msg *nl.RtMsg
 			children := []nl.NetlinkRequestData{}
 			if nh.Gw != nil {
 				gwFamily := nl.GetIPFamily(nh.Gw)
-				if family != -1 && family != gwFamily {
+				if family != FAMILY_ALL && family != gwFamily {
 					return nil, fmt.Errorf("gateway, source, and destination ip are not the same IP family")
 				}
 				if gwFamily == FAMILY_V4 {
@@ -835,7 +835,7 @@ func (h *Handle) routeHandle(route *Route, req *nl.NetlinkRequest, msg *nl.RtMsg
 				}
 			}
 			if nh.NewDst != nil {
-				if family != -1 && family != nh.NewDst.Family() {
+				if family != FAMILY_ALL && family != nh.NewDst.Family() {
 					return nil, fmt.Errorf("new destination and destination are not the same address family")
 				}
 				buf, err := nh.NewDst.Encode()

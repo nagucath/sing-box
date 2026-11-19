@@ -8,6 +8,7 @@ import (
 	"time"
 
 	snell "github.com/sagernet/sing-snell"
+	"github.com/sagernet/sing-snell/internal/eof"
 	"github.com/sagernet/sing/common/buf"
 	"github.com/sagernet/sing/common/bufio"
 	E "github.com/sagernet/sing/common/exceptions"
@@ -304,10 +305,6 @@ type packetVectorisedShapedWriter struct {
 }
 
 func (w *packetVectorisedShapedWriter) WriteVectorised(buffers []*buf.Buffer) error {
-	err := validatePacketVectorBuffers(buffers)
-	if err != nil {
-		return err
-	}
 	var records []*buf.Buffer
 	defer func() {
 		buf.ReleaseMulti(records)
@@ -315,9 +312,15 @@ func (w *packetVectorisedShapedWriter) WriteVectorised(buffers []*buf.Buffer) er
 	recordWriter := w.writer
 	recordWriter.access.Lock()
 	defer recordWriter.access.Unlock()
+	var messageTooLongErr error
 	for _, buffer := range buffers {
 		if buffer.IsEmpty() {
 			buffer.Release()
+			continue
+		}
+		if buffer.Len() > maxPayload {
+			buffer.Release()
+			messageTooLongErr = snell.ErrPayloadTooLarge
 			continue
 		}
 		recordWriter.payloadLimitFor(time.Now())
@@ -325,11 +328,15 @@ func (w *packetVectorisedShapedWriter) WriteVectorised(buffers []*buf.Buffer) er
 		records = append(records, record)
 	}
 	if len(records) == 0 {
-		return nil
+		return messageTooLongErr
 	}
 	flushRecords := records
 	records = nil
-	return w.upstream.WriteVectorised(flushRecords)
+	err := w.upstream.WriteVectorised(flushRecords)
+	if err != nil {
+		return err
+	}
+	return messageTooLongErr
 }
 
 var _ N.VectorisedWriter = (*packetVectorisedShapedWriter)(nil)
@@ -417,7 +424,7 @@ func (r *shapedReader) read() (*buf.Buffer, error) {
 			_, err = discard.ReadFullFrom(r.upstream, paddingLen)
 			discard.Release()
 			if err != nil {
-				return nil, err
+				return nil, eof.Unexpected(err)
 			}
 		}
 		return nil, io.EOF
@@ -429,7 +436,7 @@ func (r *shapedReader) read() (*buf.Buffer, error) {
 		_, err = padding.ReadFullFrom(r.upstream, paddingLen)
 		if err != nil {
 			padding.Release()
-			return nil, err
+			return nil, eof.Unexpected(err)
 		}
 	}
 	body := r.readWaitOptions.NewBufferSize(payloadLen + snell.AEADTagLen)
@@ -439,7 +446,7 @@ func (r *shapedReader) read() (*buf.Buffer, error) {
 			padding.Release()
 		}
 		body.Release()
-		return nil, err
+		return nil, eof.Unexpected(err)
 	}
 	var paddingBytes []byte
 	if padding != nil {

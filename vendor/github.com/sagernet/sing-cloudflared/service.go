@@ -3,10 +3,12 @@ package cloudflared
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"io"
 	"math/rand"
 	"net/http"
 	"runtime/debug"
+	"slices"
 	"sync"
 	"time"
 
@@ -44,6 +46,7 @@ type Service struct {
 	icmpHandler      ICMPHandler
 	connContext      func(context.Context) context.Context
 	clientVersion    string
+	locallyManaged   *LocallyManagedOptions
 	credentials      protocol.Credentials
 	connectorID      uuid.UUID
 	haConnections    int
@@ -62,6 +65,8 @@ type Service struct {
 	tunnelDialer     N.Dialer
 	controlResolver  Resolver
 	tunnelResolver   Resolver
+
+	credentialsAccess sync.Mutex
 
 	connectionAccess sync.Mutex
 	connections      []io.Closer
@@ -102,17 +107,40 @@ func connectionRetryDecision(err error) (retry bool, cancelAll bool) {
 }
 
 func NewService(options ServiceOptions) (*Service, error) {
-	if options.Token == "" {
-		return nil, E.New("missing token")
-	}
-	credentials, err := parseToken(options.Token)
-	if err != nil {
-		return nil, E.Cause(err, "parse token")
-	}
-
+	var (
+		credentials   protocol.Credentials
+		configManager *config.ConfigManager
+		err           error
+	)
 	haConnections := options.HAConnections
-	if haConnections <= 0 {
-		haConnections = 4
+	if options.LocallyManaged != nil {
+		if options.Token != "" {
+			return nil, E.New("token and locally managed tunnel are mutually exclusive")
+		}
+		if options.LocallyManaged.Credentials != nil {
+			credentials = *options.LocallyManaged.Credentials
+		} else if options.LocallyManaged.Renew == nil {
+			return nil, E.New("missing credentials")
+		}
+		if haConnections <= 0 {
+			haConnections = 1
+		}
+		configManager, err = config.NewLocalConfigManager(options.LocallyManaged.Service)
+	} else {
+		if options.Token == "" {
+			return nil, E.New("missing token")
+		}
+		credentials, err = parseToken(options.Token)
+		if err != nil {
+			return nil, E.Cause(err, "parse token")
+		}
+		if haConnections <= 0 {
+			haConnections = 4
+		}
+		configManager, err = config.NewConfigManager()
+	}
+	if err != nil {
+		return nil, E.Cause(err, "build cloudflared runtime config")
 	}
 
 	serviceLogger := options.Logger
@@ -147,11 +175,6 @@ func NewService(options ServiceOptions) (*Service, error) {
 		gracePeriod = 30 * time.Second
 	}
 
-	configManager, err := config.NewConfigManager()
-	if err != nil {
-		return nil, E.Cause(err, "build cloudflared runtime config")
-	}
-
 	controlDialer := options.ControlDialer
 	if controlDialer == nil {
 		controlDialer = N.SystemDialer
@@ -184,6 +207,7 @@ func NewService(options ServiceOptions) (*Service, error) {
 		icmpHandler:       options.ICMPHandler,
 		connContext:       options.ConnContext,
 		clientVersion:     clientVersion,
+		locallyManaged:    options.LocallyManaged,
 		credentials:       credentials,
 		connectorID:       uuid.New(),
 		haConnections:     haConnections,
@@ -212,39 +236,63 @@ func NewService(options ServiceOptions) (*Service, error) {
 	}, nil
 }
 
-func (s *Service) Start() error {
+func (s *Service) Start() (err error) {
+	defer func() {
+		if err != nil {
+			s.cancel()
+		}
+	}()
 	s.logger.Info("starting Cloudflare Tunnel with ", s.haConnections, " HA connections")
 	s.featureSelector.Start(s.ctx)
+
+	if s.locallyManaged != nil && s.currentCredentials().TunnelID == uuid.Nil {
+		err := s.renewCredentials(uuid.Nil)
+		if err != nil {
+			return err
+		}
+	}
 
 	regions, err := discoverEdge(s.ctx, s.region, s.controlDialer, s.controlResolver, s.tunnelResolver)
 	if err != nil {
 		return E.Cause(err, "discover edge")
 	}
 	regions = discovery.FilterByIPVersion(regions, s.edgeIPVersion)
-	edgeAddrs := flattenRegions(regions)
-	if len(edgeAddrs) == 0 {
+	var edgeAddrCount int
+	for _, region := range regions {
+		edgeAddrCount += len(region)
+	}
+	if edgeAddrCount == 0 {
 		return E.New("no edge addresses available")
 	}
-	if cappedHAConnections := effectiveHAConnections(s.haConnections, len(edgeAddrs)); cappedHAConnections != s.haConnections {
+	if cappedHAConnections := effectiveHAConnections(s.haConnections, edgeAddrCount); cappedHAConnections != s.haConnections {
 		s.logger.Info("requested ", s.haConnections, " HA connections but only ", cappedHAConnections, " edge addresses are available")
 		s.haConnections = cappedHAConnections
 	}
+	pool := &edgeAddrPool{regions: regions, used: make(map[*discovery.EdgeAddr]bool)}
 
 	for connIndex := 0; connIndex < s.haConnections; connIndex++ {
 		s.initializeConnectionState(uint8(connIndex))
 		s.done.Add(1)
-		go s.superviseConnection(uint8(connIndex), edgeAddrs)
+		stopped := make(chan error, 1)
+		go func() {
+			stopped <- s.superviseConnection(uint8(connIndex), pool)
+		}()
 		select {
 		case readyConnIndex := <-s.connectedNotify:
 			if readyConnIndex != uint8(connIndex) {
 				s.logger.Debug("received unexpected ready notification for connection ", readyConnIndex)
 			}
 		case <-time.After(firstConnectionReadyTimeout):
-		case <-s.ctx.Done():
-			if connIndex == 0 {
+		case err := <-stopped:
+			if err == nil {
 				return s.ctx.Err()
 			}
-			return nil
+			s.connectedAccess.Lock()
+			connected := len(s.connectedIndices) > 0
+			s.connectedAccess.Unlock()
+			if !connected || s.ctx.Err() != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -306,35 +354,42 @@ const (
 	firstConnectionReadyTimeout = 15 * time.Second
 )
 
-func (s *Service) superviseConnection(connIndex uint8, edgeAddrs []*discovery.EdgeAddr) {
+func (s *Service) superviseConnection(connIndex uint8, pool *edgeAddrPool) error {
 	defer s.done.Done()
 
-	edgeIndex := initialEdgeAddrIndex(connIndex, len(edgeAddrs))
+	edgeAddr := pool.next(nil)
 	for {
 		select {
 		case <-s.ctx.Done():
-			return
+			return nil
 		default:
 		}
 
-		edgeAddr := edgeAddrs[edgeIndex]
+		tunnelID := s.currentCredentials().TunnelID
 		err := s.safeServeConnection(connIndex, edgeAddr)
 		if err == nil || s.ctx.Err() != nil {
-			return
+			return nil
+		}
+		if s.locallyManaged != nil && s.locallyManaged.Renew != nil && errors.Is(err, control.ErrUnauthorized) {
+			s.logger.Warn("tunnel ", tunnelID, " rejected: ", err)
+			err = s.renewCredentials(tunnelID)
+			if err == nil {
+				continue
+			}
 		}
 		retry, cancelAll := connectionRetryDecision(err)
 		if cancelAll {
 			s.logger.Error("connection ", connIndex, " failed permanently: ", err)
 			s.cancel()
-			return
+			return err
 		}
 		if !retry {
 			s.logger.Error("connection ", connIndex, " failed permanently: ", err)
-			return
+			return err
 		}
 
 		retries, switchedProtocol, switched := s.recordConnectionFailure(connIndex, err)
-		edgeIndex = rotateEdgeAddrIndex(edgeIndex, len(edgeAddrs))
+		edgeAddr = pool.next(edgeAddr)
 		backoff := backoffDuration(int(retries))
 		retryableErr, isRetryable := E.Cast[*protocol.RetryableError](err)
 		if isRetryable && retryableErr.Delay > 0 {
@@ -348,7 +403,7 @@ func (s *Service) superviseConnection(connIndex uint8, edgeAddrs []*discovery.Ed
 		select {
 		case <-time.After(backoff):
 		case <-s.ctx.Done():
-			return
+			return nil
 		}
 	}
 }
@@ -383,7 +438,7 @@ func (s *Service) serveQUIC(connIndex uint8, edgeAddr *discovery.EdgeAddr, datag
 
 	connection, err := newQUICConnection(
 		s.ctx, edgeAddr, connIndex,
-		s.credentials, s.connectorID, datagramVersion,
+		s.currentCredentials(), s.connectorID, datagramVersion,
 		features, numPreviousAttempts, s.gracePeriod, s.tunnelDialer, func() {
 			s.notifyConnected(connIndex, transport.ProtocolQUIC)
 		}, s.logger,
@@ -391,6 +446,7 @@ func (s *Service) serveQUIC(connIndex uint8, edgeAddr *discovery.EdgeAddr, datag
 	if err != nil {
 		return E.Cause(err, "create QUIC connection")
 	}
+	connection.LocallyManaged = s.locallyManaged != nil
 
 	s.trackConnection(connection)
 	defer func() {
@@ -414,13 +470,14 @@ func (s *Service) serveHTTP2(connIndex uint8, edgeAddr *discovery.EdgeAddr, feat
 
 	connection, err := newHTTP2Connection(
 		s.ctx, edgeAddr, connIndex,
-		s.credentials, s.connectorID,
+		s.currentCredentials(), s.connectorID,
 		features, numPreviousAttempts, s.gracePeriod, s.tunnelDialer,
 		&http2HandlerAdapter{s}, s.logger,
 	)
 	if err != nil {
 		return E.Cause(err, "create HTTP/2 connection")
 	}
+	connection.LocallyManaged = s.locallyManaged != nil
 
 	s.trackConnection(connection)
 	defer s.untrackConnection(connection)
@@ -551,26 +608,44 @@ func backoffDuration(retries int) time.Duration {
 	return backoff/2 + jitter
 }
 
-func initialEdgeAddrIndex(connIndex uint8, size int) int {
-	if size <= 1 {
-		return 0
-	}
-	return int(connIndex) % size
+type edgeAddrPool struct {
+	access  sync.Mutex
+	regions [][]*discovery.EdgeAddr
+	used    map[*discovery.EdgeAddr]bool
 }
 
-func rotateEdgeAddrIndex(current int, size int) int {
-	if size <= 1 {
-		return 0
+func (p *edgeAddrPool) next(previous *discovery.EdgeAddr) *discovery.EdgeAddr {
+	p.access.Lock()
+	defer p.access.Unlock()
+	delete(p.used, previous)
+	var (
+		selected       *discovery.EdgeAddr
+		selectedUsed   int
+		selectedFailed bool
+	)
+	for _, region := range p.regions {
+		previousIndex := slices.Index(region, previous)
+		var (
+			candidate *discovery.EdgeAddr
+			used      int
+		)
+		for offset := range region {
+			edgeAddr := region[(previousIndex+1+offset)%len(region)]
+			if p.used[edgeAddr] {
+				used++
+			} else if candidate == nil && edgeAddr != previous {
+				candidate = edgeAddr
+			}
+		}
+		if candidate != nil && (selected == nil || used < selectedUsed || used == selectedUsed && selectedFailed) {
+			selected, selectedUsed, selectedFailed = candidate, used, previousIndex >= 0
+		}
 	}
-	return (current + 1) % size
-}
-
-func flattenRegions(regions [][]*discovery.EdgeAddr) []*discovery.EdgeAddr {
-	var result []*discovery.EdgeAddr
-	for _, region := range regions {
-		result = append(result, region...)
+	if selected == nil {
+		selected = previous
 	}
-	return result
+	p.used[selected] = true
+	return selected
 }
 
 func effectiveHAConnections(requested, available int) int {

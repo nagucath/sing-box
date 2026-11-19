@@ -11,6 +11,7 @@ import (
 	"time"
 
 	snell "github.com/sagernet/sing-snell"
+	"github.com/sagernet/sing-snell/internal/eof"
 	"github.com/sagernet/sing/common"
 	"github.com/sagernet/sing/common/buf"
 	"github.com/sagernet/sing/common/bufio"
@@ -83,7 +84,7 @@ func (r *reader) ReadRecord() (*buf.Buffer, error) {
 		_, err = padding.ReadFullFrom(r.upstream, paddingLen)
 		if err != nil {
 			padding.Release()
-			return nil, err
+			return nil, eof.Unexpected(err)
 		}
 	}
 	body := r.readWaitOptions.NewBufferSize(payloadLen + snell.AEADTagLen)
@@ -93,7 +94,7 @@ func (r *reader) ReadRecord() (*buf.Buffer, error) {
 			padding.Release()
 		}
 		body.Release()
-		return nil, err
+		return nil, eof.Unexpected(err)
 	}
 	if padding != nil {
 		paddingBytes := padding.Bytes()
@@ -255,6 +256,7 @@ func (w *writer) nextPayloadLimit() int {
 	} else {
 		payloadLimit = framePayloadStep
 	}
+	w.streamPayloadLeft = 0
 	w.lastFrameUnix = now
 	w.markPayloadLimitUsed(payloadLimit)
 	return payloadLimit
@@ -327,7 +329,6 @@ func (w *writer) WriteFirst(salt []byte, payload []byte) error {
 	w.access.Lock()
 	defer w.access.Unlock()
 	if len(payload) == 0 {
-		w.streamPayloadLeft = 0
 		w.nextPayloadLimit()
 		record := buf.NewSize(len(salt) + snell.HeaderCipherLen)
 		common.Must1(record.Write(salt))
@@ -478,28 +479,17 @@ func (w *writer) WriteBuffer(buffer *buf.Buffer) error {
 }
 
 func (w *writer) WritePacketBuffer(buffer *buf.Buffer) error {
-	dataLen := buffer.Len()
-	w.access.Lock()
-	defer w.access.Unlock()
-	now := time.Now().Unix()
-	var payloadLimit int
-	if w.lastFrameUnix == 0 {
-		payloadLimit = frameSize - firstRecordOverhead - w.initialPaddingLen
-	} else if now-w.lastFrameUnix < framePayloadResetInterval {
-		payloadLimit = w.framePayloadLen
-		if payloadLimit == 0 {
-			payloadLimit = framePayloadStep
-		}
-	} else {
-		payloadLimit = framePayloadStep
-	}
-	if dataLen > payloadLimit {
+	if buffer.Len() > maxPayload {
 		buffer.Release()
 		return snell.ErrPayloadTooLarge
 	}
-	w.streamPayloadLeft = 0
-	w.lastFrameUnix = now
-	w.markPayloadLimitUsed(payloadLimit)
+	w.access.Lock()
+	defer w.access.Unlock()
+	// snell-server v5.0.1: FUN_001403d0 passes UDP replies to the stream
+	// encryptor FUN_0013def0, which splits them at the growth window, while
+	// FUN_00140a50 and Surge's -[SGUDPConnectorSnellV4 socket:didReadData:]
+	// read every record as one datagram.
+	w.nextPayloadLimit()
 	record, err := w.makeBufferRecordLocked(buffer, 0)
 	if err != nil {
 		buffer.Release()
@@ -515,7 +505,6 @@ func (w *writer) WriteZeroChunk() error {
 	defer w.access.Unlock()
 	// snell-server v5.0.1: FUN_0013def0 calls FUN_00139670 even for an empty
 	// payload, so EOF records consume one growth-window step.
-	w.streamPayloadLeft = 0
 	w.nextPayloadLimit()
 	w.sealHeader(buffer.Extend(snell.HeaderCipherLen), 0, 0)
 	err := common.Error(w.upstream.Write(buffer.Bytes()))
@@ -687,32 +676,18 @@ func (w *packetVectorisedWriter) WriteVectorised(buffers []*buf.Buffer) error {
 	recordWriter := w.writer
 	recordWriter.access.Lock()
 	defer recordWriter.access.Unlock()
+	var messageTooLongErr error
 	for index, buffer := range buffers {
-		dataLen := buffer.Len()
-		if dataLen == 0 {
+		if buffer.IsEmpty() {
 			buffer.Release()
 			continue
 		}
-		now := time.Now().Unix()
-		var payloadLimit int
-		if recordWriter.lastFrameUnix == 0 {
-			payloadLimit = frameSize - firstRecordOverhead - recordWriter.initialPaddingLen
-		} else if now-recordWriter.lastFrameUnix < framePayloadResetInterval {
-			payloadLimit = recordWriter.framePayloadLen
-			if payloadLimit == 0 {
-				payloadLimit = framePayloadStep
-			}
-		} else {
-			payloadLimit = framePayloadStep
-		}
-		if dataLen > payloadLimit {
+		if buffer.Len() > maxPayload {
 			buffer.Release()
-			buf.ReleaseMulti(buffers[index+1:])
-			return snell.ErrPayloadTooLarge
+			messageTooLongErr = snell.ErrPayloadTooLarge
+			continue
 		}
-		recordWriter.streamPayloadLeft = 0
-		recordWriter.lastFrameUnix = now
-		recordWriter.markPayloadLimitUsed(payloadLimit)
+		recordWriter.nextPayloadLimit()
 		record, err := recordWriter.makeBufferRecordLocked(buffer, 0)
 		if err != nil {
 			buffer.Release()
@@ -722,11 +697,15 @@ func (w *packetVectorisedWriter) WriteVectorised(buffers []*buf.Buffer) error {
 		records = append(records, record)
 	}
 	if len(records) == 0 {
-		return nil
+		return messageTooLongErr
 	}
 	flushRecords := records
 	records = nil
-	return w.upstream.WriteVectorised(flushRecords)
+	err := w.upstream.WriteVectorised(flushRecords)
+	if err != nil {
+		return err
+	}
+	return messageTooLongErr
 }
 
 func (w *writer) FrontHeadroom() int {

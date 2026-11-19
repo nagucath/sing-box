@@ -233,7 +233,11 @@ func (r *autoRedirect) iptablesFillLocalChain(chain iptablesLocalChain, addresse
 			return []string{"-g", chain.next}
 		}
 		if chain.hook == iptablesHookPrerouting {
-			for _, prefix := range prefixes {
+			sources := prefixes
+			if !chain.family.isIPv6 {
+				sources = append([]netip.Prefix{netip.PrefixFrom(netip.AddrFrom4([4]byte{169, 254, 0, 0}), 16)}, prefixes...)
+			}
+			for _, prefix := range sources {
 				for _, protocol := range []string{"udp", "tcp"} {
 					err := iptablesRun(chain.family.path, slices.Concat([]string{
 						"-t", chain.table, "-A", chain.name,
@@ -258,6 +262,12 @@ func (r *autoRedirect) iptablesFillLocalChain(chain iptablesLocalChain, addresse
 	}
 	for _, prefix := range prefixes {
 		err := iptablesRun(chain.family.path, "-t", chain.table, "-A", chain.name, "-d", prefix.String(), "-j", "RETURN")
+		if err != nil {
+			return err
+		}
+	}
+	if runtime.GOOS != "android" {
+		err := iptablesRun(chain.family.path, "-t", chain.table, "-A", chain.name, "-m", "addrtype", "--dst-type", "LOCAL", "-j", "RETURN")
 		if err != nil {
 			return err
 		}
@@ -302,11 +312,13 @@ func (r *autoRedirect) iptablesAddExcludeRules(builder *iptablesBuilder, hook ip
 		builder.add("-m", "mark", "--mark", outputMark, "-j", "RETURN")
 		if kind == iptablesKindRoute {
 			builder.add("-m", "connmark", "--mark", outputMark, "-j", "RETURN")
+			builder.add("-m", "conntrack", "--ctdir", "REPLY", "-m", "connmark", "!", "--mark", iptablesMark(r.tunFlowMark(), mask), "-j", "RETURN")
 		}
 	}
 	if kind == iptablesKindNAT {
 		builder.add("-m", "connmark", "--mark", outputMark, "-j", "RETURN")
 		builder.add("-p", "tcp", "-m", "connmark", "--mark", iptablesMark(options.AutoRedirectInputMark, mask), "-j", "RETURN")
+		builder.add("-p", "tcp", "-m", "connmark", "--mark", iptablesMark(r.tunFlowMark(), mask), "-j", "RETURN")
 	}
 	if hook == iptablesHookPrerouting {
 		r.iptablesAddOwnIngressReturn(builder)
@@ -358,12 +370,19 @@ func (r *autoRedirect) iptablesAddPreMatchRules(builder *iptablesBuilder, hook i
 	inputMark := iptablesMark(r.tunOptions.AutoRedirectInputMark, mask)
 	outputMark := iptablesMark(r.tunOptions.AutoRedirectOutputMark, mask)
 	resetMark := iptablesMark(r.tunOptions.AutoRedirectResetMark, mask)
+	tunFlowMark := iptablesMark(r.tunFlowMark(), mask)
 	if hook == iptablesHookOutput {
 		if r.androidVPNService {
 			builder.add("!", "-o", options.Name, "-j", "RETURN")
 		}
+		icmpProtocol := "icmp"
+		if builder.family.isIPv6 {
+			icmpProtocol = "icmpv6"
+		}
+		builder.add("!", "-p", icmpProtocol, "-m", "conntrack", "--ctdir", "REPLY", "-m", "connmark", "--mark", tunFlowMark, "-j", "MARK", "--set-xmark", inputMark)
 	} else {
 		builder.add("-i", "lo", "-j", "RETURN")
+		builder.add("-i", options.Name, "-m", "conntrack", "--ctdir", "ORIGINAL", "-j", "CONNMARK", "--set-xmark", tunFlowMark)
 		r.iptablesAddOwnIngressReturn(builder)
 	}
 	builder.add("-m", "conntrack", "--ctdir", "REPLY", "-j", "RETURN")
@@ -397,7 +416,7 @@ func (r *autoRedirect) iptablesAddMarkRules(builder *iptablesBuilder) {
 	maskValue := iptablesHex(mask)
 	inputMark := iptablesMark(r.tunOptions.AutoRedirectInputMark, mask)
 	builder.add("-j", "MARK", "--set-xmark", inputMark)
-	builder.add("-j", "CONNMARK", "--save-mark", "--nfmask", maskValue, "--ctmask", maskValue)
+	builder.add("-m", "connmark", "!", "--mark", iptablesMark(r.tunFlowMark(), mask), "-j", "CONNMARK", "--save-mark", "--nfmask", maskValue, "--ctmask", maskValue)
 }
 
 func (r *autoRedirect) iptablesAddLoopbackReroute(builder *iptablesBuilder, hook iptablesHook) {
@@ -449,6 +468,7 @@ func (r *autoRedirect) setupIPTablesForFamily(family *iptablesFamily) error {
 	outputMark := iptablesMark(r.tunOptions.AutoRedirectOutputMark, mask)
 	resetMark := iptablesMark(r.tunOptions.AutoRedirectResetMark, mask)
 	tproxyMark := iptablesMark(r.tunOptions.AutoRedirectTProxyMark, mask)
+	tunFlowMark := iptablesMark(r.tunFlowMark(), mask)
 	loopbackAddresses := options.Inet4LoopbackAddress
 	if family.isIPv6 {
 		loopbackAddresses = options.Inet6LoopbackAddress
@@ -528,8 +548,10 @@ func (r *autoRedirect) setupIPTablesForFamily(family *iptablesFamily) error {
 	if family.isIPv6 && !family.tproxy {
 		preroutingMarkChain.add("-p", "tcp", "-m", "mark", "--mark", resetMark, "-j", "RETURN")
 	}
-	preroutingMarkChain.add("-m", "connmark", "--mark", inputMark, "-j", "MARK", "--set-xmark", inputMark)
+	preroutingMarkChain.add("-m", "connmark", "--mark", inputMark, "-m", "conntrack", "--ctdir", "ORIGINAL", "-j", "MARK", "--set-xmark", inputMark)
+	preroutingMarkChain.add("-m", "connmark", "--mark", tunFlowMark, "-m", "conntrack", "--ctdir", "REPLY", "-j", "MARK", "--set-xmark", inputMark)
 	preroutingMarkChain.add("-m", "connmark", "--mark", inputMark, "-j", "RETURN")
+	preroutingMarkChain.add("-m", "connmark", "--mark", tunFlowMark, "-j", "RETURN")
 	preroutingMarkChain.add("-m", "connmark", "--mark", outputMark, "-j", "MARK", "--set-xmark", outputMark)
 	preroutingMarkChain.add("-m", "connmark", "--mark", outputMark, "-j", "RETURN")
 	include := preroutingMarkChain.branch("include")
@@ -588,10 +610,13 @@ func (r *autoRedirect) setupIPTablesForFamily(family *iptablesFamily) error {
 			return preroutingNAT.err
 		}
 		inserts = append(inserts, iptablesInsert{iptablesTableNAT, "PREROUTING", []string{"-j", preroutingNAT.name}})
+		// Qualcomm QoS chains in mangle POSTROUTING (qcom_qos_reset_POSTROUTING)
+		// overwrite the whole packet mark on rmnet egress, so the postrouting
+		// rules match the connmark.
 		if r.androidVPNService {
 			postroutingNAT := r.iptablesChain(family, iptablesTableNAT, r.tableName+"-postrouting")
 			for _, prefix := range options.Inet4Address {
-				postroutingNAT.add("-s", prefix.Masked().String(), "!", "-o", options.Name, "-m", "mark", "--mark", outputMark, "-j", "MASQUERADE")
+				postroutingNAT.add("-s", prefix.Masked().String(), "!", "-o", options.Name, "-m", "connmark", "--mark", outputMark, "-j", "MASQUERADE")
 			}
 			if postroutingNAT.err != nil {
 				return postroutingNAT.err
@@ -599,7 +624,7 @@ func (r *autoRedirect) setupIPTablesForFamily(family *iptablesFamily) error {
 			inserts = append(inserts, iptablesInsert{iptablesTableNAT, "POSTROUTING", []string{"-j", postroutingNAT.name}})
 			postroutingMangle := r.iptablesChain(family, iptablesTableMangle, r.tableName+"-postrouting")
 			for _, prefix := range options.Inet4Address {
-				postroutingMangle.add("-s", prefix.Masked().String(), "!", "-o", options.Name, "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-m", "mark", "--mark", outputMark, "-j", "TCPMSS", "--clamp-mss-to-pmtu")
+				postroutingMangle.add("-s", prefix.Masked().String(), "!", "-o", options.Name, "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-m", "connmark", "--mark", outputMark, "-j", "TCPMSS", "--clamp-mss-to-pmtu")
 			}
 			if postroutingMangle.err != nil {
 				return postroutingMangle.err
@@ -695,6 +720,7 @@ func (r *autoRedirect) setupIPTablesForFamily(family *iptablesFamily) error {
 		forward := r.iptablesChain(family, iptablesTableFilter, r.tableName+"-forward")
 		forward.add("-o", options.Name, "-m", "mark", "--mark", inputMark, "-j", "ACCEPT")
 		forward.add("-i", options.Name, "-m", "connmark", "--mark", inputMark, "-j", "ACCEPT")
+		forward.add("-i", options.Name, "-m", "connmark", "--mark", tunFlowMark, "-j", "ACCEPT")
 		if forward.err != nil {
 			return forward.err
 		}
