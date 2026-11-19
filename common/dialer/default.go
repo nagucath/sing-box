@@ -59,6 +59,9 @@ func NewDefault(ctx context.Context, options option.DialerOptions) (*DefaultDial
 	connectionManager := service.FromContext[adapter.ConnectionManager](ctx)
 	networkManager := service.FromContext[adapter.NetworkManager](ctx)
 	platformInterface := service.FromContext[adapter.PlatformInterface](ctx)
+	if err := checkExclusiveOutputMark(ctx, options); err != nil {
+		return nil, err
+	}
 
 	var (
 		dialer                 net.Dialer

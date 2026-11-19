@@ -100,6 +100,7 @@ type InboundContext struct {
 	GeoIPCode                           string
 	ProcessInfo                         *ConnectionOwner
 	SourceMACAddress                    net.HardwareAddr
+	DSCP                                uint8
 	SourceHostname                      string
 	QueryType                           uint16
 	QueryClientSubnet                   netip.Prefix

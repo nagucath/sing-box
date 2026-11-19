@@ -1,6 +1,7 @@
 name: Lint
 
 on:
+  workflow_call:
   push:
     branches:
       - oldstable
@@ -19,7 +20,7 @@ on:
       - unstable
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ inputs.build }}
+  group: lint-${{ github.ref }}-${{ github.event_name }}-${{ inputs.build }}
   cancel-in-progress: true
 
 jobs:
