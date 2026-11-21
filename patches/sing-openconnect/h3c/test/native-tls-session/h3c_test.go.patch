@@ -1,6 +1,6 @@
 diff --git a/h3c_test.go b/h3c_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..901b89e943ccba1542180686aa0e210f16220f27
+index 0000000000000000000000000000000000000000..845766f8faa3aea8e263c686a0b54e6de6740c0b
 --- /dev/null
 +++ b/h3c_test.go
 @@ -0,0 +1,163 @@
@@ -135,7 +135,7 @@ index 0000000000000000000000000000000000000000..901b89e943ccba1542180686aa0e210f
 +		w.WriteHeader(200)
 +	}))
 +	defer server.Close()
-+	client, err := NewClient(ClientOptions{Server: server.URL, Flavor: FlavorH3C, TLSConfig: &tls.Config{InsecureSkipVerify: true}})
++	client, err := NewClient(ClientOptions{Server: server.URL, Flavor: FlavorH3C, TLSConfig: ClientTLSOptions{Config: &tls.Config{InsecureSkipVerify: true}}})
 +	if err != nil {
 +		t.Fatal(err)
 +	}
