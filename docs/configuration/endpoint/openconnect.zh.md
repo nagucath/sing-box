@@ -147,9 +147,14 @@ OpenConnect VPN 服务器 HTTPS URL。
 
 ### flavor
 
-OpenConnect 协议 flavor，可选值为 `anyconnect`、`gp`、`fortinet`、`f5`、`pulse` 或 `nc`。
+OpenConnect 协议 flavor，可选值为 `anyconnect`、`gp`、`fortinet`、`f5`、`pulse`、`nc` 或 `h3c`。
 
 默认使用 `anyconnect`。
+
+`h3c` 支持无验证码/MFA 的密码认证、已有 `svpnginfo` cookie 和 IPv4
+`NET_EXTEND` TLS 数据通道。`system: false` 使用已有用户态网络栈，不创建
+TUN。默认 User-Agent 为 `SSLVPN-Client/7.0`。CA 和证书 pin 校验同时覆盖
+登录与数据通道；此 flavor 暂不支持客户端证书、token 或自定义 TLS 版本范围。
 
 ### username
 

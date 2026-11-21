@@ -3,7 +3,9 @@
 `vendor/` is a standard Go vendor projection generated from the main module
 graph. DAE and Tailscale packages come from pristine `third_party/` pins after
 the ordered parent-owned patch stacks under `patches/` are applied in the
-ignored `.vendor-work/` generation area.
+ignored `.vendor-work/` generation area. The sing-openconnect Go module is
+acquired through its pinned module checksum and patched by the package-owned
+`patches/sing-openconnect/run.py` entrypoint, without another source checkout.
 
 Do not edit files below `vendor/` directly. Regenerate and verify with:
 

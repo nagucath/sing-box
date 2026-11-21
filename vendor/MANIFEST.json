@@ -15,8 +15,50 @@
   ],
   "generated_by": "tools/vendor/materialize.py",
   "lock": "deps/vendor-lock.json",
+  "module_patches": [
+    {
+      "module": "github.com/sagernet/sing-openconnect",
+      "patches": [
+        {
+          "order": 1,
+          "path": "dependencies/chore/browser-transport/go.mod.patch",
+          "sha256": "31a1987cdd9c53ecaf083fbd8aba2bc4443892d7c67beb6116bd6bdfab322eb5",
+          "target": "go.mod"
+        },
+        {
+          "order": 2,
+          "path": "dependencies/chore/browser-transport/go.sum.patch",
+          "sha256": "df5d64cd1d531bc9bac6419daa322f565134a4caf850b4d4560fbc9f4a2d426e",
+          "target": "go.sum"
+        },
+        {
+          "order": 3,
+          "path": "h3c/feat/password-authentication/h3c_auth.go.patch",
+          "sha256": "e0901c3fca1a0ed275aec59141b3b2ede41bf17b2480f41d86fa481103a51ed9",
+          "target": "h3c_auth.go"
+        },
+        {
+          "order": 4,
+          "path": "h3c/feat/packet-session/h3c_session.go.patch",
+          "sha256": "c496d55518db15331adf52689c2c0766ed187bd06c77303f77107ae6c2a2a6ed",
+          "target": "h3c_session.go"
+        },
+        {
+          "order": 5,
+          "path": "h3c/test/native-tls-session/h3c_test.go.patch",
+          "sha256": "51840cc3e006c6e3038b79a43eaaeddc4808fc258239b84030d63528d69f5285",
+          "target": "h3c_test.go"
+        }
+      ],
+      "path": ".vendor-work/sing-openconnect",
+      "result_sha256": "cd7bf1a315e5ea308c02a225e709c4f2c65de5d7af64d4ab69da640a707c4169",
+      "sum": "h1:gAt6mkxVJW9pgE9kNk/IvJRCLccDWQ1rTuZPSxnex4s=",
+      "upstream_commit": "31db24231febde30a249e95034d6a3ddf9520b78",
+      "version": "v0.1.1-0.20261119021124-31db24231feb"
+    }
+  ],
   "projection": {
-    "entries": 9074,
+    "entries": 9596,
     "excluded_repository_metadata": [
       {
         "kind": "file",
@@ -35,6 +77,12 @@
         "path": "github.com/anchore/go-lzo/.gitignore",
         "sha256": "8919ad84f8aee99c39efeb584bccc5fb8519bce0b124352888348882a9830543",
         "size": 197
+      },
+      {
+        "kind": "file",
+        "path": "github.com/andybalholm/brotli/.gitignore",
+        "sha256": "e7597aad8739db2690fd5394c2885ab1b9321640088ac7bbf321ef47bc9cd07c",
+        "size": 20
       },
       {
         "kind": "file",
@@ -83,6 +131,12 @@
         "path": "github.com/cilium/ebpf/.gitignore",
         "sha256": "67e5d2e0718eacce86621b47122f068f06c72741404335cb1c3ce83e54c31e7f",
         "size": 206
+      },
+      {
+        "kind": "file",
+        "path": "github.com/coder/websocket/.gitignore",
+        "sha256": "ed6cfbce214958ad4dfe1f387ebb95caa900597410363397763d5179b1736e6c",
+        "size": 8
       },
       {
         "kind": "file",
@@ -164,6 +218,18 @@
       },
       {
         "kind": "file",
+        "path": "github.com/icholy/digest/.gitignore",
+        "sha256": "58c59124b1ef1248ef8b887561e9bf5c4043bad7df8505c089a5b5be580596ff",
+        "size": 7
+      },
+      {
+        "kind": "file",
+        "path": "github.com/imroc/req/v3/.gitignore",
+        "sha256": "64087135570f590546363625d6b5e2c5d3764339d71308446ff4f3400c86bb53",
+        "size": 321
+      },
+      {
+        "kind": "file",
         "path": "github.com/jsimonetti/rtnetlink/.gitignore",
         "sha256": "64ae815b9b85a566ba4242c0e84891402dbedd86e85b1a63ec71c9b4e1e7a646",
         "size": 18
@@ -183,8 +249,8 @@
       {
         "kind": "file",
         "path": "github.com/klauspost/compress/.gitignore",
-        "sha256": "62f51ad312d90bfd09dcf93c1f19d5d222932e538072d53ab756debdecb9b314",
-        "size": 360
+        "sha256": "1b750e8a32599c21b80fc09f0300f478ea34535eacefc27df2366a3c3477a471",
+        "size": 441
       },
       {
         "kind": "file",
@@ -305,6 +371,12 @@
         "path": "github.com/quic-go/qpack/.gitmodules",
         "sha256": "275c61ce7591bcea2c35e6d0d9ecfa92402ac6256b5fcfa165df5ca2ffe4e546",
         "size": 92
+      },
+      {
+        "kind": "file",
+        "path": "github.com/quic-go/quic-go/.gitignore",
+        "sha256": "c53c04b373edae60b71174af3c391dd98e846e302276313da44c3265ed35c292",
+        "size": 237
       },
       {
         "kind": "file",
@@ -608,9 +680,9 @@
       }
     ],
     "format": "go-mod-vendor",
-    "modules_txt_sha256": "9e2b72e77e35ee3d3e5efca5c9b15dbba4a53b16e3f7ef9115740c19db9266ed",
+    "modules_txt_sha256": "199ef8fac2bfb9fc1dc41299e0a9baeb21aee7813253dde8db7c01e5be99f3e5",
     "path": "vendor",
-    "tree_sha256": "48eb0a743a94938d3c1decd20eb94435654dcec5eae6698cc34bacc45b388804"
+    "tree_sha256": "ace5d11213cbb054847c53ae5155edffac5cc4f8f5d3ebf2c3ed87deabaa5731"
   },
   "schema_version": "sing-box-vendor-manifest/v2"
 }

@@ -1,0 +1,206 @@
+package openconnect
+
+import (
+	"context"
+	"crypto/tls"
+	"encoding/xml"
+	"io"
+	"net"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
+
+	E "github.com/sagernet/sing/common/exceptions"
+	M "github.com/sagernet/sing/common/metadata"
+	"github.com/wignerStan/infra/go/network/http/browserclient/reqtransport"
+)
+
+const FlavorH3C = "h3c"
+const h3cUserAgent = "SSLVPN-Client/7.0"
+
+type h3cFrontend struct {
+	client *Client
+	native *reqtransport.Transport
+}
+type h3cAuthentication struct {
+	frontend     *h3cFrontend
+	mu           sync.Mutex
+	used, closed bool
+	cancel       context.CancelFunc
+}
+type h3cObtainedSession struct {
+	frontend *h3cFrontend
+	http     *http.Client
+	jar      http.CookieJar
+	once     sync.Once
+	closeErr error
+}
+type h3cDialer struct{ client *Client }
+
+func (d h3cDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	return d.client.options.Dialer.DialContext(ctx, network, M.ParseSocksaddr(address))
+}
+func init() { registerFlavorFrontend(FlavorH3C, newH3CFrontend) }
+func newH3CFrontend(client *Client) (flavorFrontend, error) {
+	if client.serverURL.Path != "" && client.serverURL.Path != "/" {
+		return nil, E.Extend(ErrProtocolNotSupported, "H3C requires a gateway origin")
+	}
+	if client.tlsConfig.MinVersion > tls.VersionTLS12 || client.tlsConfig.MaxVersion != 0 {
+		return nil, E.Extend(ErrProtocolNotSupported, "H3C browser TLS supports the default TLS version policy")
+	}
+	if client.configuredTLSClientCertificate() || client.options.Token != nil || client.options.PasswordAuthenticationDisabled || len(client.options.FormEntries) > 0 {
+		return nil, E.Extend(ErrProtocolNotSupported, "H3C supports configured password or direct Cookie authentication")
+	}
+	native, err := reqtransport.New(reqtransport.Options{Profile: "chrome", RootCAs: client.tlsConfig.RootCAs, InsecureSkipVerify: client.tlsConfig.InsecureSkipVerify, VerifyConnection: func(state tls.ConnectionState) error {
+		if client.tlsConfig.VerifyConnection != nil {
+			return client.tlsConfig.VerifyConnection(state)
+		}
+		return nil
+	}, Dialer: h3cDialer{client}})
+	if err != nil {
+		return nil, err
+	}
+	return &h3cFrontend{client: client, native: native}, nil
+}
+func (f *h3cFrontend) BeginAuthentication() authContinuation { return &h3cAuthentication{frontend: f} }
+func (a *h3cAuthentication) Done() <-chan error              { return nil }
+func (a *h3cAuthentication) Close() error {
+	a.mu.Lock()
+	a.closed = true
+	if a.cancel != nil {
+		a.cancel()
+	}
+	a.mu.Unlock()
+	return nil
+}
+func (a *h3cAuthentication) Advance(ctx context.Context, response *authenticationResponse) (obtainedSession, *authenticationRequest, error) {
+	a.mu.Lock()
+	if a.used || a.closed || response != nil {
+		a.mu.Unlock()
+		return nil, nil, ErrAuthChallengeCanceled
+	}
+	a.used = true
+	ctx, cancel := context.WithCancel(ctx)
+	a.cancel = cancel
+	a.mu.Unlock()
+	defer cancel()
+	state, err := a.frontend.authenticateH3C(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if ctx.Err() != nil {
+		state.Close()
+		return nil, nil, ctx.Err()
+	}
+	return state, nil, nil
+}
+func (f *h3cFrontend) authenticateH3C(ctx context.Context) (*h3cObtainedSession, error) {
+	nativeJar, err := cookiejar.New(nil)
+	var jar http.CookieJar = nativeJar
+	if err != nil {
+		return nil, err
+	}
+	direct := f.client.takeDirectCookie()
+	if direct != "" {
+		jar, _, err = newDirectCookieJar(f.client.serverURL, direct, "svpnginfo")
+		if err != nil {
+			return nil, err
+		}
+	}
+	state := &h3cObtainedSession{frontend: f, jar: jar, http: &http.Client{Transport: f.native, Jar: jar, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	if direct != "" {
+		return state, nil
+	}
+	if f.client.options.Username == "" || f.client.options.Password == "" {
+		return nil, E.Extend(ErrAuthenticationFailed, "H3C username/password required")
+	}
+	path := "/client_getinfo.cgi"
+	if f.client.options.AuthGroup != "" {
+		path += "?" + url.Values{"domain": {f.client.options.AuthGroup}}.Encode()
+	}
+	r, err := state.request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var capabilities struct {
+		Auth struct {
+			Password string `xml:"supportPassword"`
+			Captcha  string `xml:"supportvldimg"`
+		} `xml:"gatewayinfo>auth"`
+	}
+	err = xml.NewDecoder(io.LimitReader(r.Body, 65536)).Decode(&capabilities)
+	r.Body.Close()
+	if err != nil || r.StatusCode != 200 || strings.TrimSpace(capabilities.Auth.Password) != "true" || strings.TrimSpace(capabilities.Auth.Captcha) == "true" {
+		return nil, E.Extend(ErrProtocolNotSupported, "H3C password capability or verification challenge unsupported")
+	}
+	data := struct {
+		XMLName  xml.Name `xml:"data"`
+		Username string   `xml:"username"`
+		Password string   `xml:"password"`
+		Code     string   `xml:"vldCode"`
+		Language string   `xml:"language"`
+		OS       string   `xml:"OS"`
+	}{Username: f.client.options.Username, Password: f.client.options.Password, Language: "EN", OS: "Linux"}
+	body, err := xml.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	r, err = state.request(ctx, http.MethodPost, "/_xml/login.cgi", url.Values{"request": {string(body)}})
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Result string `xml:"result"`
+	}
+	err = xml.NewDecoder(io.LimitReader(r.Body, 65536)).Decode(&result)
+	r.Body.Close()
+	if err != nil || r.StatusCode != 200 || !strings.EqualFold(strings.TrimSpace(result.Result), "success") {
+		return nil, E.Extend(ErrAuthenticationFailed, "H3C login rejected; no automatic password retry")
+	}
+	return state, nil
+}
+func (s *h3cObtainedSession) request(ctx context.Context, method, path string, form url.Values) (*http.Response, error) {
+	u := *s.frontend.client.serverURL
+	relative, err := url.Parse(path)
+	if err != nil || relative.IsAbs() || relative.Host != "" {
+		return nil, E.Extend(ErrProtocolNotSupported, "invalid H3C control path")
+	}
+	u.Path = relative.Path
+	u.RawPath = ""
+	u.RawQuery = relative.RawQuery
+	u.Fragment = ""
+	var body io.Reader
+	if form != nil {
+		body = strings.NewReader(form.Encode())
+	}
+	r, err := http.NewRequestWithContext(ctx, method, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	agent := s.frontend.client.options.UserAgent
+	if agent == "" {
+		agent = h3cUserAgent
+	}
+	r.Header.Set("User-Agent", agent)
+	if form != nil {
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
+	return s.http.Do(r)
+}
+func (s *h3cObtainedSession) Close() error {
+	s.once.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		r, err := s.request(ctx, http.MethodGet, "/_xml/logout.cgi", nil)
+		if err == nil {
+			r.Body.Close()
+		} else {
+			s.closeErr = err
+		}
+		s.frontend.native.CloseIdleConnections()
+	})
+	return s.closeErr
+}
