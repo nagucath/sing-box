@@ -66,8 +66,8 @@ github.com/anthropics/anthropic-sdk-go/shared/constant
 # github.com/axiomhq/hyperloglog v0.0.0-20240319100328-84253e514e02
 ## explicit; go 1.12
 github.com/axiomhq/hyperloglog
-# github.com/caddyserver/certmagic v0.25.3
-## explicit; go 1.25.0
+# github.com/caddyserver/certmagic v0.25.3-0.20260421143802-60d9d8b415d6
+## explicit; go 1.24.0
 github.com/caddyserver/certmagic
 github.com/caddyserver/certmagic/internal/atomicfile
 # github.com/caddyserver/zerossl v0.1.5
@@ -95,10 +95,11 @@ github.com/cilium/ebpf/internal/tracefs
 github.com/cilium/ebpf/internal/unix
 github.com/cilium/ebpf/link
 github.com/cilium/ebpf/rlimit
-# github.com/clipperhouse/uax29/v2 v2.7.0
+# github.com/clipperhouse/uax29/v2 v2.2.0
 ## explicit; go 1.18
 github.com/clipperhouse/uax29/v2/graphemes
-# github.com/coder/websocket v1.8.15
+github.com/clipperhouse/uax29/v2/internal/iterators
+# github.com/coder/websocket v1.8.14
 ## explicit; go 1.23
 github.com/coder/websocket
 github.com/coder/websocket/internal/bpool
@@ -147,7 +148,7 @@ github.com/dgryski/go-camellia
 # github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc
 ## explicit
 github.com/dgryski/go-metro
-# github.com/ebitengine/purego v0.10.1
+# github.com/ebitengine/purego v0.10.0
 ## explicit; go 1.18
 github.com/ebitengine/purego
 github.com/ebitengine/purego/internal/cgo
@@ -158,8 +159,8 @@ github.com/ebitengine/purego/internal/xreflect
 ## explicit; go 1.24.0
 github.com/florianl/go-nfqueue/v2
 github.com/florianl/go-nfqueue/v2/internal/unix
-# github.com/fsnotify/fsnotify v1.10.1
-## explicit; go 1.23
+# github.com/fsnotify/fsnotify v1.9.0
+## explicit; go 1.17
 github.com/fsnotify/fsnotify
 github.com/fsnotify/fsnotify/internal
 # github.com/fxamacker/cbor/v2 v2.9.0
@@ -177,14 +178,14 @@ github.com/gaissmai/bart/internal/sparse
 github.com/gaissmai/bart/internal/tests/golden
 github.com/gaissmai/bart/internal/tests/random
 github.com/gaissmai/bart/internal/value
-# github.com/go-chi/chi/v5 v5.5.0
-## explicit; go 1.24
+# github.com/go-chi/chi/v5 v5.2.5
+## explicit; go 1.22
 github.com/go-chi/chi/v5
 github.com/go-chi/chi/v5/middleware
 # github.com/go-chi/render v1.0.3
 ## explicit; go 1.16
 github.com/go-chi/render
-# github.com/go-jose/go-jose/v4 v4.1.4
+# github.com/go-jose/go-jose/v4 v4.1.3
 ## explicit; go 1.24.0
 github.com/go-jose/go-jose/v4
 github.com/go-jose/go-jose/v4/cipher
@@ -320,10 +321,9 @@ github.com/klauspost/compress/internal/regmask
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/klauspost/cpuid/v2 v2.4.1
-## explicit; go 1.24.0
+# github.com/klauspost/cpuid/v2 v2.3.0
+## explicit; go 1.22
 github.com/klauspost/cpuid/v2
-github.com/klauspost/cpuid/v2/topology
 # github.com/koron/go-ssdp v0.0.4
 ## explicit; go 1.19
 github.com/koron/go-ssdp
@@ -353,7 +353,7 @@ github.com/libp2p/go-netroute
 # github.com/logrusorgru/aurora v2.0.3+incompatible
 ## explicit
 github.com/logrusorgru/aurora
-# github.com/mattn/go-runewidth v0.0.31
+# github.com/mattn/go-runewidth v0.0.27
 ## explicit; go 1.23
 github.com/mattn/go-runewidth
 # github.com/mdlayher/netlink v1.11.2
@@ -1175,12 +1175,6 @@ github.com/vishvananda/netlink/nl
 # github.com/vishvananda/netns v0.0.5
 ## explicit; go 1.17
 github.com/vishvananda/netns
-# github.com/wignerStan/infra/go v0.0.0-20261121085703-1fd3b6f67e62
-## explicit; go 1.26.6
-github.com/wignerStan/infra/go/network/dial
-# github.com/wignerStan/infra/go/network/http/browserclient v0.0.0-20261121085930-1079808e1488
-## explicit; go 1.27.0
-github.com/wignerStan/infra/go/network/http/browserclient/reqtransport
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
@@ -1202,7 +1196,7 @@ github.com/zeebo/blake3/internal/utils
 # go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
-# go.uber.org/zap v1.28.0
+# go.uber.org/zap v1.27.1
 ## explicit; go 1.19
 go.uber.org/zap
 go.uber.org/zap/buffer
@@ -1253,7 +1247,7 @@ golang.org/x/crypto/sha3
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/agent
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
-# golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297
+# golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
 ## explicit; go 1.25.0
 golang.org/x/exp/constraints
 golang.org/x/exp/maps
@@ -1334,8 +1328,8 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# golang.org/x/time v0.16.0
-## explicit; go 1.26.0
+# golang.org/x/time v0.15.0
+## explicit; go 1.25.0
 golang.org/x/time/rate
 # golang.org/x/tools v0.51.0
 ## explicit; go 1.26.0
@@ -1365,11 +1359,11 @@ golang.zx2c4.com/wireguard/wgctrl/wgtypes
 # golang.zx2c4.com/wireguard/windows v0.5.3
 ## explicit; go 1.18
 golang.zx2c4.com/wireguard/windows/tunnel/winipcfg
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260817212433-ac3dfec99bb1
-## explicit; go 1.25.0
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217
+## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.85.0-dev.0.20260825072537-93e31b48545e
-## explicit; go 1.25.0
+# google.golang.org/grpc v1.79.1
+## explicit; go 1.24.0
 google.golang.org/grpc
 google.golang.org/grpc/attributes
 google.golang.org/grpc/backoff
@@ -1389,7 +1383,6 @@ google.golang.org/grpc/credentials/insecure
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/internal
 google.golang.org/grpc/encoding/proto
-google.golang.org/grpc/experimental/balancer/weight
 google.golang.org/grpc/experimental/stats
 google.golang.org/grpc/grpclog
 google.golang.org/grpc/grpclog/internal
@@ -1398,6 +1391,7 @@ google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancer/gracefulswitch
+google.golang.org/grpc/internal/balancer/weight
 google.golang.org/grpc/internal/balancerload
 google.golang.org/grpc/internal/binarylog
 google.golang.org/grpc/internal/buffer
@@ -1408,7 +1402,6 @@ google.golang.org/grpc/internal/grpclog
 google.golang.org/grpc/internal/grpcsync
 google.golang.org/grpc/internal/grpcutil
 google.golang.org/grpc/internal/idle
-google.golang.org/grpc/internal/mem
 google.golang.org/grpc/internal/metadata
 google.golang.org/grpc/internal/pretty
 google.golang.org/grpc/internal/proxyattributes
@@ -1423,9 +1416,7 @@ google.golang.org/grpc/internal/stats
 google.golang.org/grpc/internal/status
 google.golang.org/grpc/internal/syscall
 google.golang.org/grpc/internal/transport
-google.golang.org/grpc/internal/transport/internal
 google.golang.org/grpc/internal/transport/networktype
-google.golang.org/grpc/internal/transport/readyreader
 google.golang.org/grpc/keepalive
 google.golang.org/grpc/mem
 google.golang.org/grpc/metadata
@@ -1440,7 +1431,7 @@ google.golang.org/grpc/serviceconfig
 google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
-# google.golang.org/protobuf v1.36.12
+# google.golang.org/protobuf v1.36.11
 ## explicit; go 1.23
 google.golang.org/protobuf/encoding/protojson
 google.golang.org/protobuf/encoding/prototext

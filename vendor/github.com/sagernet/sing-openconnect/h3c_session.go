@@ -60,7 +60,7 @@ func (s *h3cSession) Start() error {
 	if s.client.serverURL.Port() == "" {
 		address = net.JoinHostPort(s.client.serverURL.Hostname(), "443")
 	}
-	conn, tlsState, err := s.state.frontend.native.DialTLS(bounded, address)
+	conn, tlsState, err := s.state.frontend.dialTLS(bounded, address)
 	if err != nil {
 		s.endRead()
 		return err

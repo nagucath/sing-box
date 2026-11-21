@@ -1,3 +1,0 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-go_library(name="dial",srcs=["connect.go"],importpath="github.com/wignerStan/infra/go/network/dial",visibility=["//visibility:public"],deps=[])
-go_test(name="dial_test",srcs=["connect_test.go"],embed=[":dial"])

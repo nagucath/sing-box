@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/imroc/req/v3"
 	E "github.com/sagernet/sing/common/exceptions"
 	M "github.com/sagernet/sing/common/metadata"
-	"github.com/wignerStan/infra/go/network/http/browserclient/reqtransport"
 )
 
 const FlavorH3C = "h3c"
@@ -23,7 +23,7 @@ const h3cUserAgent = "SSLVPN-Client/7.0"
 
 type h3cFrontend struct {
 	client *Client
-	native *reqtransport.Transport
+	native *req.Transport
 }
 type h3cAuthentication struct {
 	frontend     *h3cFrontend
@@ -54,16 +54,42 @@ func newH3CFrontend(client *Client) (flavorFrontend, error) {
 	if client.configuredTLSClientCertificate() || client.options.Token != nil || client.options.PasswordAuthenticationDisabled || len(client.options.FormEntries) > 0 {
 		return nil, E.Extend(ErrProtocolNotSupported, "H3C supports configured password or direct Cookie authentication")
 	}
-	native, err := reqtransport.New(reqtransport.Options{Profile: "chrome", RootCAs: client.tlsConfig.RootCAs, InsecureSkipVerify: client.tlsConfig.InsecureSkipVerify, VerifyConnection: func(state tls.ConnectionState) error {
-		if client.tlsConfig.VerifyConnection != nil {
-			return client.tlsConfig.VerifyConnection(state)
+	config := client.tlsConfig.Clone()
+	// OpenConnect owns trust and pin verification; retain it after the browser handshake.
+	config.VerifyConnection = nil
+	browser := req.C().SetProxy(nil).SetDial(h3cDialer{client}.DialContext).ImpersonateChrome().SetTLSClientConfig(config)
+	native := browser.GetTransport()
+	handshake := native.TLSHandshakeContext
+	native.SetTLSHandshake(func(ctx context.Context, address string, plain net.Conn) (net.Conn, *tls.ConnectionState, error) {
+		conn, state, err := handshake(ctx, address, plain)
+		if err != nil {
+			return nil, nil, err
 		}
-		return nil
-	}, Dialer: h3cDialer{client}})
-	if err != nil {
-		return nil, err
-	}
+		if client.tlsConfig.VerifyConnection != nil {
+			if err = client.tlsConfig.VerifyConnection(*state); err != nil {
+				conn.Close()
+				return nil, nil, err
+			}
+		}
+		return conn, state, nil
+	})
 	return &h3cFrontend{client: client, native: native}, nil
+}
+func (f *h3cFrontend) dialTLS(ctx context.Context, address string) (net.Conn, *tls.ConnectionState, error) {
+	plain, err := h3cDialer{f.client}.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return nil, nil, err
+	}
+	conn, state, err := f.native.TLSHandshakeContext(ctx, address, plain)
+	if err != nil {
+		plain.Close()
+		return nil, nil, err
+	}
+	if err = ctx.Err(); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+	return conn, state, nil
 }
 func (f *h3cFrontend) BeginAuthentication() authContinuation { return &h3cAuthentication{frontend: f} }
 func (a *h3cAuthentication) Done() <-chan error              { return nil }

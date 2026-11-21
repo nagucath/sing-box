@@ -18,8 +18,8 @@ python3 tools/vendor/verify.py
 
 The H3C flavor uses password authentication or an existing `svpnginfo` cookie,
 then upgrades TLS with `NET_EXTEND` and exchanges framed IPv4 packets through
-sing-openconnect. It uses the reusable infra native browser transport, pinned
-as a regular Go module. Authentication and application policy stay in this
+sing-openconnect. It binds the mature req/uTLS browser transport through the existing
+OpenConnect dialer, without a private account/module dependency. Authentication and application policy stay in this
 package. Explicit CA/pin policy and the sing-box outbound dialer are retained
 for both control and data connections. Unsupported CAPTCHA/MFA, tokens, client
 certificates and custom TLS version bounds fail before authentication.

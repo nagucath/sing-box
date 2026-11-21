@@ -22,43 +22,43 @@
         {
           "order": 1,
           "path": "dependencies/chore/browser-transport/go.mod.patch",
-          "sha256": "31a1987cdd9c53ecaf083fbd8aba2bc4443892d7c67beb6116bd6bdfab322eb5",
+          "sha256": "62998493b9707a249a4b886a1b229d401746518891a5735d691f1590948473ae",
           "target": "go.mod"
         },
         {
           "order": 2,
           "path": "dependencies/chore/browser-transport/go.sum.patch",
-          "sha256": "df5d64cd1d531bc9bac6419daa322f565134a4caf850b4d4560fbc9f4a2d426e",
+          "sha256": "bfdd9fc12c2b1b4d5f7e524e1b4a36e5087ccfaa6b785253b8dbadadd2a8a823",
           "target": "go.sum"
         },
         {
           "order": 3,
           "path": "h3c/feat/password-authentication/h3c_auth.go.patch",
-          "sha256": "e0901c3fca1a0ed275aec59141b3b2ede41bf17b2480f41d86fa481103a51ed9",
+          "sha256": "a008f56c8a1e93fd13b814cf7e4a8855e450aaad70b94ef9be026d937dd737ef",
           "target": "h3c_auth.go"
         },
         {
           "order": 4,
           "path": "h3c/feat/packet-session/h3c_session.go.patch",
-          "sha256": "c496d55518db15331adf52689c2c0766ed187bd06c77303f77107ae6c2a2a6ed",
+          "sha256": "d07ccee82fec060cf9fa043526f18913e0e0905d836f547392b26b132478a310",
           "target": "h3c_session.go"
         },
         {
           "order": 5,
           "path": "h3c/test/native-tls-session/h3c_test.go.patch",
-          "sha256": "51840cc3e006c6e3038b79a43eaaeddc4808fc258239b84030d63528d69f5285",
+          "sha256": "202c83cc1a8ac5e2891d6a0d891dcc9df616b5bf6cf2cd6548a49cefffcd94d6",
           "target": "h3c_test.go"
         }
       ],
       "path": ".vendor-work/sing-openconnect",
-      "result_sha256": "cd7bf1a315e5ea308c02a225e709c4f2c65de5d7af64d4ab69da640a707c4169",
+      "result_sha256": "8f148ed8e5fff0d93d768cc5c9b0115a488bc83b0c1041cab005b01381853ff1",
       "sum": "h1:gAt6mkxVJW9pgE9kNk/IvJRCLccDWQ1rTuZPSxnex4s=",
       "upstream_commit": "31db24231febde30a249e95034d6a3ddf9520b78",
       "version": "v0.1.1-0.20261119021124-31db24231feb"
     }
   ],
   "projection": {
-    "entries": 9596,
+    "entries": 9560,
     "excluded_repository_metadata": [
       {
         "kind": "file",
@@ -131,12 +131,6 @@
         "path": "github.com/cilium/ebpf/.gitignore",
         "sha256": "67e5d2e0718eacce86621b47122f068f06c72741404335cb1c3ce83e54c31e7f",
         "size": 206
-      },
-      {
-        "kind": "file",
-        "path": "github.com/coder/websocket/.gitignore",
-        "sha256": "ed6cfbce214958ad4dfe1f387ebb95caa900597410363397763d5179b1736e6c",
-        "size": 8
       },
       {
         "kind": "file",
@@ -680,9 +674,9 @@
       }
     ],
     "format": "go-mod-vendor",
-    "modules_txt_sha256": "199ef8fac2bfb9fc1dc41299e0a9baeb21aee7813253dde8db7c01e5be99f3e5",
+    "modules_txt_sha256": "ce58c4973baae549536cf08318e4105e7b5d2808608f2366b8e95d10b8d4e46a",
     "path": "vendor",
-    "tree_sha256": "ace5d11213cbb054847c53ae5155edffac5cc4f8f5d3ebf2c3ed87deabaa5731"
+    "tree_sha256": "0a10d7e6f7ce1846b9fe76d5471bcdb22bd388b7d3a2878535410d34c0b45dd5"
   },
   "schema_version": "sing-box-vendor-manifest/v2"
 }

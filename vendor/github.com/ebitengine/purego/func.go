@@ -10,6 +10,7 @@ import (
 	"math"
 	"reflect"
 	"runtime"
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego/internal/strings"
@@ -20,6 +21,10 @@ const (
 	align8ByteMask = 7 // Mask for 8-byte alignment: (val + 7) &^ 7
 	align8ByteSize = 8 // 8-byte alignment boundary
 )
+
+var thePool = sync.Pool{New: func() any {
+	return new(syscall15Args)
+}}
 
 // RegisterLibFunc is a wrapper around RegisterFunc that uses the C function returned from Dlsym(handle, name).
 // It panics if it can't find the name symbol.
@@ -305,7 +310,8 @@ func RegisterFunc(fptr any, cfn uintptr) {
 			keepAlive = addValue(v, keepAlive, addInt, addFloat, addStack, &numInts, &numFloats, &numStack)
 		}
 
-		syscall := &syscall15Args{}
+		syscall := thePool.Get().(*syscall15Args)
+		defer thePool.Put(syscall)
 
 		if runtime.GOARCH == "loong64" || runtime.GOARCH == "ppc64le" || runtime.GOARCH == "riscv64" || runtime.GOARCH == "s390x" {
 			syscall.Set(cfn, sysargs[:], floats[:], 0)
@@ -315,6 +321,7 @@ func RegisterFunc(fptr any, cfn uintptr) {
 			syscall.Set(cfn, sysargs[:], floats[:], arm64_r8)
 			runtime_cgocall(syscall15XABI0, unsafe.Pointer(syscall))
 		} else {
+			*syscall = syscall15Args{}
 			// This is a fallback for Windows amd64, 386, and arm. Note this may not support floats
 			syscall.a1, syscall.a2, _ = syscall_syscall15X(cfn, sysargs[0], sysargs[1], sysargs[2], sysargs[3], sysargs[4],
 				sysargs[5], sysargs[6], sysargs[7], sysargs[8], sysargs[9], sysargs[10], sysargs[11],
