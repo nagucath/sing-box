@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -41,6 +42,15 @@ COMPONENTS: tuple[dict[str, Any], ...] = (
         "module_subpath": ".",
     },
 )
+
+
+def patched_go_module() -> dict[str, Any]:
+    """Load the package-owned Go module patch entrypoint."""
+    path = ROOT / "patches/sing-openconnect/run.py"
+    spec = importlib.util.spec_from_file_location("sing_openconnect_patches", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.prepare()
 
 
 def run(
@@ -245,6 +255,7 @@ def write_projection_metadata(
     components: list[dict[str, Any]],
     vendor_root: Path,
     excluded_repository_metadata: list[dict[str, Any]],
+    module_patches: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     payload_sha256, entries = tree_digest(vendor_root)
     modules_path = vendor_root / "modules.txt"
@@ -263,6 +274,7 @@ def write_projection_metadata(
         "schema_version": "sing-box-vendor-lock/v2",
         "authority": "wignerStan/sing-box",
         "components": components,
+        "module_patches": module_patches or [],
         "projection": projection,
     }
     LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -282,6 +294,7 @@ def write_projection_metadata(
             }
             for component in components
         ],
+        "module_patches": module_patches or [],
     }
     MANIFEST_PATH.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
@@ -293,7 +306,9 @@ def write_projection_metadata(
 `vendor/` is a standard Go vendor projection generated from the main module
 graph. DAE and Tailscale packages come from pristine `third_party/` pins after
 the ordered parent-owned patch stacks under `patches/` are applied in the
-ignored `.vendor-work/` generation area.
+ignored `.vendor-work/` generation area. The sing-openconnect Go module is
+acquired through its pinned module checksum and patched by the package-owned
+`patches/sing-openconnect/run.py` entrypoint, without another source checkout.
 
 Do not edit files below `vendor/` directly. Regenerate and verify with:
 
@@ -314,9 +329,11 @@ gitlink, submodule, or nested repository is permitted below `vendor/`.
 
 
 def main_materialize(*, keep_work: bool) -> None:
-    remove_path(WORK_ROOT)
+    # Validate existing module edits before rebuilding any materialization.
+    module_patches = [patched_go_module()]
     components = [materialize_component(component) for component in COMPONENTS]
     enforce_replacements()
+    run("go", "mod", "edit", "-replace=github.com/sagernet/sing-openconnect=./.vendor-work/sing-openconnect", cwd=ROOT, go_mod_mode=True)
     run("go", "mod", "tidy", cwd=ROOT, go_mod_mode=True)
 
     generated = ROOT / ".vendor-generated"
@@ -326,7 +343,7 @@ def main_materialize(*, keep_work: bool) -> None:
 
     remove_path(VENDOR_ROOT)
     generated.rename(VENDOR_ROOT)
-    write_projection_metadata(components, VENDOR_ROOT, excluded_repository_metadata)
+    write_projection_metadata(components, VENDOR_ROOT, excluded_repository_metadata, module_patches)
 
     if not keep_work:
         remove_path(WORK_ROOT)

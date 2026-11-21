@@ -1,0 +1,5 @@
+1 dependencies/chore/browser-transport/go.mod.patch 62998493b9707a249a4b886a1b229d401746518891a5735d691f1590948473ae
+2 dependencies/chore/browser-transport/go.sum.patch bfdd9fc12c2b1b4d5f7e524e1b4a36e5087ccfaa6b785253b8dbadadd2a8a823
+3 h3c/feat/password-authentication/h3c_auth.go.patch a008f56c8a1e93fd13b814cf7e4a8855e450aaad70b94ef9be026d937dd737ef
+4 h3c/feat/packet-session/h3c_session.go.patch d07ccee82fec060cf9fa043526f18913e0e0905d836f547392b26b132478a310
+5 h3c/test/native-tls-session/h3c_test.go.patch d1fd29f3f2d1402ae613cbcd5b1ea59ccca72321c3cc7fe4dd7735bed87ef58e

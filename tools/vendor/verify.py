@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -234,6 +235,25 @@ def verify_go_contract() -> None:
     run("go", "list", "-mod=vendor", "./cmd/sing-box", cwd=ROOT)
 
 
+def verify_module_patches(value: dict[str, Any]) -> None:
+    path = ROOT / "patches/sing-openconnect/run.py"
+    spec = importlib.util.spec_from_file_location("sing_openconnect_patches", path)
+    package = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(package)
+    # Offline release/source checks must not acquire a module or source cache.
+    metadata = package.metadata()
+    package.verify_vendor()
+    if value.get("module_patches") != [metadata]:
+        raise RuntimeError("Go module patch inventory differs from vendor lock")
+    manifest = json.loads((VENDOR / "MANIFEST.json").read_text())
+    if manifest.get("module_patches") != [metadata]:
+        raise RuntimeError("Go module patch inventory differs from vendor manifest")
+    module = json.loads(run("go", "mod", "edit", "-json", cwd=ROOT, go_mod_mode=True))
+    replacements = {item["Old"]["Path"]: item["New"]["Path"] for item in module.get("Replace", [])}
+    if replacements.get(metadata["module"]) != "./.vendor-work/sing-openconnect":
+        raise RuntimeError("incorrect patched Go module replacement")
+
+
 def verify_sources(value: dict[str, Any], *, require_source: bool) -> bool:
     components = value.get("components")
     if not isinstance(components, list) or len(components) != len(EXPECTED_COMPONENTS):
@@ -302,6 +322,7 @@ def main() -> None:
     verify_relationships(value)
     verify_projection(value)
     verify_go_contract()
+    verify_module_patches(value)
     source_verified = verify_sources(value, require_source=options.require_source)
     scope = "source, patches, and Go vendor projection" if source_verified else "offline Go vendor projection"
     print(f"{scope} verified")
