@@ -1,0 +1,128 @@
+diff --git a/h3c_test.go b/h3c_test.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..60f88c8a177578a0b8999c9455c3e093414ef3d8
+--- /dev/null
++++ b/h3c_test.go
+@@ -0,0 +1,122 @@
++package openconnect
++
++import (
++	"context"
++	"crypto/tls"
++	"encoding/binary"
++	"encoding/xml"
++	"io"
++	"net/http"
++	"net/http/httptest"
++	"sync/atomic"
++	"testing"
++	"time"
++)
++
++func TestH3CNativePacketSession(t *testing.T) {
++	var logins, logouts atomic.Int32
++	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		if r.UserAgent() != h3cUserAgent {
++			t.Error("H3C protocol User-Agent lost")
++		}
++		switch r.URL.Path {
++		case "/client_getinfo.cgi":
++			http.SetCookie(w, &http.Cookie{Name: "svpnginfo", Value: "fixture-initial", Path: "/"})
++			io.WriteString(w, "<data><gatewayinfo><auth><supportPassword>true</supportPassword><supportvldimg>false</supportvldimg></auth></gatewayinfo></data>")
++		case "/_xml/login.cgi":
++			logins.Add(1)
++			r.ParseForm()
++			var data struct {
++				Username string `xml:"username"`
++				Password string `xml:"password"`
++			}
++			if xml.Unmarshal([]byte(r.Form.Get("request")), &data) != nil || data.Username != "fixture" || data.Password != "a<&>b" {
++				t.Error("credential XML escaping failed")
++			}
++			http.SetCookie(w, &http.Cookie{Name: "svpnginfo", Value: "fixture-authenticated", Path: "/"})
++			io.WriteString(w, "<data><result>Success</result></data>")
++		case "/_xml/logout.cgi":
++			logouts.Add(1)
++			w.WriteHeader(200)
++		case "/":
++			if r.Method != "NET_EXTEND" {
++				t.Error("wrong H3C upgrade method")
++				w.WriteHeader(400)
++				return
++			}
++			cookie, err := r.Cookie("svpnginfo")
++			if err != nil || cookie.Value != "fixture-authenticated" {
++				t.Error("authenticated Cookie missing")
++				w.WriteHeader(401)
++				return
++			}
++			conn, rw, err := w.(http.Hijacker).Hijack()
++			if err != nil {
++				t.Error(err)
++				return
++			}
++			defer conn.Close()
++			io.WriteString(rw, "HTTP/1.1 200 OK\r\nIPADDRESS: 10.0.0.2\r\nSUBNETMASK: 24\r\nROUTES: 172.29.9.0/24;\r\nContent-Length: 0\r\n\r\n")
++			rw.Flush()
++			for {
++				var frame [4]byte
++				if _, err = io.ReadFull(rw, frame[:]); err != nil {
++					return
++				}
++				data := make([]byte, binary.BigEndian.Uint16(frame[2:]))
++				if _, err = io.ReadFull(rw, data); err != nil {
++					return
++				}
++				rw.Write(frame[:2])
++				rw.Write(frame[2:])
++				rw.Write(data)
++				if rw.Flush() != nil {
++					return
++				}
++			}
++		default:
++			w.WriteHeader(404)
++		}
++	}))
++	defer server.Close()
++	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
++	defer cancel()
++	client, err := NewClient(ClientOptions{Context: ctx, Server: server.URL, Flavor: FlavorH3C, Username: "fixture", Password: "a<&>b", IPv6Disabled: true, TLSConfig: ClientTLSOptions{Config: &tls.Config{InsecureSkipVerify: true}}})
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err = client.Start(); err != nil {
++		t.Fatal(err)
++	}
++	defer client.Close()
++	if err = client.WaitReady(ctx); err != nil {
++		t.Fatal(err)
++	}
++	configuration := client.TunnelConfiguration()
++	if len(configuration.Addresses) != 1 || len(configuration.Routes) != 1 || configuration.MTU != 1400 {
++		t.Fatal("configuration not published")
++	}
++	packet := make([]byte, 20)
++	packet[0] = 0x45
++	binary.BigEndian.PutUint16(packet[2:4], 20)
++	if err = client.WriteDataPacket(packet); err != nil {
++		t.Fatal(err)
++	}
++	echoed, err := client.ReadDataPacket(ctx)
++	if err != nil || len(echoed) != 20 {
++		t.Fatal("H3C packet roundtrip failed", err)
++	}
++	if err = client.Close(); err != nil {
++		t.Fatal(err)
++	}
++	if logins.Load() != 1 || logouts.Load() != 1 {
++		t.Fatal("authentication/logout not one-shot", logins.Load(), logouts.Load())
++	}
++}
++func TestH3CRejectsMalformedConfiguration(t *testing.T) {
++	for _, headers := range []http.Header{{"Ipaddress": {"invalid"}, "Subnetmask": {"24"}}, {"Ipaddress": {"10.0.0.2"}, "Subnetmask": {"99"}}, {"Ipaddress": {"10.0.0.2"}, "Subnetmask": {"24"}, "Routes": {"bad"}}} {
++		if _, err := parseH3CConfiguration(headers, 1400); err == nil {
++			t.Fatal("invalid gateway configuration accepted")
++		}
++	}
++}
