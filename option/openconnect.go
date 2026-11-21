@@ -11,7 +11,7 @@ type OpenConnectEndpointOptions struct {
 	UDPFiltering                   UDPNATBehavior                       `json:"udp_filtering,omitempty"`
 	UDPNATMax                      uint32                               `json:"udp_nat_max,omitempty"`
 	Server                         string                               `json:"server"`
-	Flavor                         string                               `json:"flavor,omitempty" enum:"anyconnect,gp,fortinet,f5,pulse,nc,h3c"`
+	Flavor                         string                               `json:"flavor,omitempty" enum:"anyconnect,gp,fortinet,f5,pulse,nc"`
 	Username                       string                               `json:"username,omitempty"`
 	Password                       string                               `json:"password,omitempty"`
 	AuthGroup                      string                               `json:"auth_group,omitempty"`

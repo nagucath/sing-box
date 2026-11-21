@@ -147,17 +147,9 @@ The `https://` scheme is added if omitted. URL user information, queries, and fr
 
 ### flavor
 
-OpenConnect protocol flavor, one of `anyconnect`, `gp`, `fortinet`, `f5`, `pulse`, `nc`, or `h3c`.
+OpenConnect protocol flavor, one of `anyconnect`, `gp`, `fortinet`, `f5`, `pulse`, or `nc`.
 
 `anyconnect` is used by default.
-
-`h3c` supports H3C password authentication (without CAPTCHA/MFA), an existing
-`svpnginfo` cookie, and the IPv4 `NET_EXTEND` TLS packet channel. With
-`system: false`, the endpoint uses the existing user-space network stack; no
-TUN interface is created. The default H3C user agent is `SSLVPN-Client/7.0`.
-Configured CA and certificate-pin verification apply to both login and the
-packet channel. Client certificates, tokens and custom TLS version bounds are
-currently rejected by this flavor.
 
 ### username
 
@@ -183,8 +175,6 @@ The accepted format depends on `flavor`:
 - `pulse`: The raw Pulse authentication cookie value.
 - `f5`: An `MRHSession` value, or a semicolon-separated cookie list containing `MRHSession` and optionally `F5_ST`.
 - `fortinet`: An `SVPNCOOKIE` value, or a semicolon-separated cookie list containing `SVPNCOOKIE`.
-
-- `h3c`: An `svpnginfo` value, or a semicolon-separated cookie list containing `svpnginfo`.
 
 If the server rejects the supplied session, normal authentication is attempted.
 

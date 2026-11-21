@@ -253,7 +253,10 @@ type InterfaceIdent struct {
 func (ifi *InterfaceIdent) Len(_ int) int {
 	switch ifi.Type {
 	case typeInterfaceByName:
-		l := min(len(ifi.Name), 255)
+		l := len(ifi.Name)
+		if l > 255 {
+			l = 255
+		}
 		return 4 + (l+3)&^3
 	case typeInterfaceByIndex:
 		return 4 + 4

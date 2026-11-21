@@ -63,7 +63,6 @@ type WrapResponseWriter interface {
 	Unwrap() http.ResponseWriter
 	// Discard causes all writes to the original ResponseWriter be discarded,
 	// instead writing only to the tee'd writer if it's set.
-	// Flush calls also do not reach the original ResponseWriter.
 	// The caller is responsible for calling WriteHeader and Write on the
 	// original ResponseWriter once the processing is done.
 	Discard()
@@ -120,13 +119,6 @@ func (b *basicWriter) maybeWriteHeader() {
 	}
 }
 
-func (b *basicWriter) flush() {
-	b.maybeWriteHeader()
-	if !b.discard {
-		b.ResponseWriter.(http.Flusher).Flush()
-	}
-}
-
 func (b *basicWriter) Status() int {
 	return b.code
 }
@@ -153,7 +145,9 @@ type flushWriter struct {
 }
 
 func (f *flushWriter) Flush() {
-	f.basicWriter.flush()
+	f.wroteHeader = true
+	fl := f.basicWriter.ResponseWriter.(http.Flusher)
+	fl.Flush()
 }
 
 var _ http.Flusher = &flushWriter{}
@@ -176,7 +170,9 @@ type flushHijackWriter struct {
 }
 
 func (f *flushHijackWriter) Flush() {
-	f.basicWriter.flush()
+	f.wroteHeader = true
+	fl := f.basicWriter.ResponseWriter.(http.Flusher)
+	fl.Flush()
 }
 
 func (f *flushHijackWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
@@ -196,7 +192,9 @@ type httpFancyWriter struct {
 }
 
 func (f *httpFancyWriter) Flush() {
-	f.basicWriter.flush()
+	f.wroteHeader = true
+	fl := f.basicWriter.ResponseWriter.(http.Flusher)
+	fl.Flush()
 }
 
 func (f *httpFancyWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
@@ -209,13 +207,9 @@ func (f *http2FancyWriter) Push(target string, opts *http.PushOptions) error {
 }
 
 func (f *httpFancyWriter) ReadFrom(r io.Reader) (int64, error) {
-	if f.basicWriter.tee != nil || f.basicWriter.discard {
-		// Route through basicWriter.Write so that the tee and discard semantics
-		// are honored (the fast ReaderFrom path below would bypass both, writing
-		// straight to the original ResponseWriter). basicWriter.Write already
-		// increments basicWriter.bytes, so we must NOT add n again here (that
-		// would double-count).
+	if f.basicWriter.tee != nil {
 		n, err := io.Copy(&f.basicWriter, r)
+		f.basicWriter.bytes += int(n)
 		return n, err
 	}
 	rf := f.basicWriter.ResponseWriter.(io.ReaderFrom)
@@ -239,7 +233,9 @@ type http2FancyWriter struct {
 }
 
 func (f *http2FancyWriter) Flush() {
-	f.basicWriter.flush()
+	f.wroteHeader = true
+	fl := f.basicWriter.ResponseWriter.(http.Flusher)
+	fl.Flush()
 }
 
 var _ http.Flusher = &http2FancyWriter{}

@@ -1,7 +1,0 @@
-{
-  "module": "github.com/sagernet/sing-openconnect",
-  "version": "v0.1.1-0.20260929151226-29757281a247",
-  "upstream_commit": "29757281a247b9b4360dfa7be0cb9a86821a166a",
-  "sum": "h1:Ui4XtxNgQiEquK+ch4dYhthKsVlGQpdCdKIpOuJVyog=",
-  "result_sha256": "7d80a673b7a125f202d524135f811b6fa299dcebcd8b6b51bed0cdc35ad569bb"
-}
