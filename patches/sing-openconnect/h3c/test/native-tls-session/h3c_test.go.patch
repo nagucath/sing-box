@@ -1,9 +1,9 @@
 diff --git a/h3c_test.go b/h3c_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..d14c05a28a8c3d393998443d457492f45e2bb09e
+index 0000000000000000000000000000000000000000..91f7b45c914c2d1e1036967181cfc5e71ed1c56a
 --- /dev/null
 +++ b/h3c_test.go
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,127 @@
 +package openconnect
 +
 +import (
@@ -11,6 +11,7 @@ index 0000000000000000000000000000000000000000..d14c05a28a8c3d393998443d457492f4
 +	"crypto/tls"
 +	"encoding/binary"
 +	"encoding/xml"
++	"errors"
 +	"io"
 +	"net/http"
 +	"net/http/httptest"
@@ -118,4 +119,15 @@ index 0000000000000000000000000000000000000000..d14c05a28a8c3d393998443d457492f4
 +	if logins.Load() != 1 || logouts.Load() != 1 {
 +		t.Fatal("authentication/logout not one-shot", logins.Load(), logouts.Load())
 +	}
++}
++
++func TestH3CRejectsConfiguredClientCertificate(t *testing.T) {
++    client, err := NewClient(ClientOptions{
++        Server: "https://gateway.example", Flavor: FlavorH3C,
++        TLSConfig: ClientTLSOptions{Config: &tls.Config{
++            GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) { return &tls.Certificate{}, nil },
++        }},
++    })
++    if client != nil { defer client.Close() }
++    if !errors.Is(err, ErrProtocolNotSupported) { t.Fatalf("configured identity accepted: %v", err) }
 +}

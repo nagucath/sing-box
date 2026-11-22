@@ -1,9 +1,9 @@
 diff --git a/h3c_auth.go b/h3c_auth.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..381d2fc1b8884aa276642d7e1df03e95c85ac1d9
+index 0000000000000000000000000000000000000000..6ea7a8b57ec206d5f6a870a85d2f2df509904229
 --- /dev/null
 +++ b/h3c_auth.go
-@@ -0,0 +1,119 @@
+@@ -0,0 +1,122 @@
 +package openconnect
 +
 +import (
@@ -38,10 +38,13 @@ index 0000000000000000000000000000000000000000..381d2fc1b8884aa276642d7e1df03e95
 +    if client.configuredTLSClientCertificate() || client.options.Token != nil || client.options.PasswordAuthenticationDisabled || len(client.options.FormEntries) > 0 {
 +        return nil, E.Extend(ErrProtocolNotSupported, "H3C supports configured password or direct Cookie authentication")
 +    }
++    // Upstream always wraps certificate selection. The gate above rejects configured identities.
++    tlsConfig := client.tlsConfig.Clone()
++    tlsConfig.GetClientCertificate = nil
 +    native, err := h3c.New(h3c.Options{
 +        Server: client.serverURL.String(), Username: client.options.Username,
 +        Password: client.options.Password, AuthGroup: client.options.AuthGroup,
-+        UserAgent: client.options.UserAgent, MTU: client.options.MTU, TLSConfig: client.tlsConfig,
++        UserAgent: client.options.UserAgent, MTU: client.options.MTU, TLSConfig: tlsConfig,
 +        DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 +            return client.options.Dialer.DialContext(ctx, network, M.ParseSocksaddr(address))
 +        },
