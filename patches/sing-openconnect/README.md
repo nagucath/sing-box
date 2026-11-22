@@ -12,7 +12,7 @@ Each patch owns one exact target. `run.py` verifies the reconstructed digest
 and refuses to replace unrecorded edits. The vendor generator projects the
 adapter and its exact infra module dependency into ordinary Go vendor files.
 
-GitHub Actions performs generation and validation. The OpenConnect extraction
+GitHub Actions performs generation and validation. Infra’s OpenConnect library
 workflow formats the adapter, resolves modules, refreshes package hashes, and
 regenerates vendor. Download its generated patch for review and commit.
 H3C OpenConnect then verifies the tracked source and builds a binary from
