@@ -1,4 +1,4 @@
-1 dependencies/chore/infra-library/go.mod.patch ee4ff5713d2777485776d0c43d49315cef9bffb087d56b228cffed5a9ff9fc86
+1 dependencies/chore/infra-library/go.mod.patch 3c4b70241e9113271fbb02d4c528e71aa1c10dca109fe1899979d6aead5b7251
 2 dependencies/chore/browser-transport/go.sum.patch f0c9b13c55031ede819e67763ba0cdf0cda946ef410579681c984b0bb55466f5
 3 h3c/hook/infra-client/h3c_auth.go.patch 58fa00cc0e79bd9f082fc4bb490dc7aea698d308d3d718eb0d975d41f0f8ecd6
 4 h3c/test/native-tls-session/h3c_test.go.patch b85b9bc3d2eecafb9842a8ad8dad21b3ef33d8a905b7a5a3a5ac5df33d57e82e
