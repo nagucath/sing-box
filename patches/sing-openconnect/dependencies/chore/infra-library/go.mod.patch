@@ -1,5 +1,5 @@
 diff --git a/go.mod b/go.mod
-index 60c2b1559ea581b8ced10a1c8187a2615f3ea98f..583975b9068b9a9aa6fdddc6edae43876be37eb6 100644
+index 60c2b1559ea581b8ced10a1c8187a2615f3ea98f..3629e238290fe55d5eb3bf55ddb0b658f9330de2 100644
 --- a/go.mod
 +++ b/go.mod
 @@ -1,22 +1,30 @@
@@ -12,7 +12,7 @@ index 60c2b1559ea581b8ced10a1c8187a2615f3ea98f..583975b9068b9a9aa6fdddc6edae4387
  	github.com/anchore/go-lzo v0.1.0
  	github.com/google/certificate-transparency-go v1.3.2
 -	github.com/klauspost/compress v1.18.0
-+	github.com/imroc/req/v3 v3.61.0
++	github.com/wignerStan/infra/go/network/openconnect v0.0.0-20261122005602-cf1580f9a478
 +	github.com/klauspost/compress v1.20.3
 +	github.com/pierrec/lz4/v4 v4.1.28
  	github.com/pion/dtls/v3 v3.1.5

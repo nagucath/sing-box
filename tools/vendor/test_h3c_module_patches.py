@@ -32,7 +32,7 @@ class H3CModulePatchTests(unittest.TestCase):
     def test_offline_vendor_verification_never_runs_a_command(self) -> None:
         with patch.object(self.module, "run", side_effect=AssertionError("unexpected acquisition")):
             self.module.verify_vendor()
-            self.assertEqual(len(self.module.metadata()["patches"]), 5)
+            self.assertEqual(len(self.module.metadata()["patches"]), 4)
 
     def test_rejects_changed_projected_production_source(self) -> None:
         source = self.root / "vendor/github.com/sagernet/sing-openconnect/h3c_auth.go"

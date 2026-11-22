@@ -2,7 +2,7 @@ name: Rebased network build
 on:
   workflow_dispatch:
   push:
-    branches: [rebase/incus-hotspot-20261119]
+    branches: [refactor/openconnect-infra]
 permissions:
   contents: read
 concurrency:

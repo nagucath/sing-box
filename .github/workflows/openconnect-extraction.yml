@@ -1,0 +1,83 @@
+name: OpenConnect extraction
+on:
+  push:
+    branches: [refactor/openconnect-infra]
+    paths:
+      - 'patches/sing-openconnect/**'
+      - 'tools/vendor/refresh_openconnect.py'
+      - '.github/workflows/openconnect-extraction.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  library:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: wignerStan/infra
+          ref: cf1580f9a478e66a80e036c3e4f10775e1dd785f
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Format and resolve the extracted library
+        working-directory: go/network/openconnect
+        env:
+          GOWORK: 'off'
+        run: |
+          gofmt -w h3c/*.go
+          go mod tidy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: infra-openconnect-source-${{ github.sha }}
+          path: go/network/openconnect/
+          if-no-files-found: error
+      - name: Test the infra library
+        working-directory: go/network/openconnect
+        env:
+          GOWORK: 'off'
+        run: |
+          go build ./...
+          go test -race -count=1 ./...
+          go vet ./...
+  generate:
+    needs: library
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Regenerate the adapter and vendor
+        run: |
+          git submodule update --init --depth 1 third_party/dae third_party/tailscale
+          python3 tools/vendor/refresh_openconnect.py
+          python3 tools/vendor/materialize.py --keep-work
+          python3 tools/vendor/verify.py --require-source
+          python3 patches/sing-openconnect/run.py check --vendor
+      - name: Export generated source changes
+        run: |
+          git add --intent-to-add --force vendor
+          git diff --binary -- go.mod go.sum deps/vendor-lock.json vendor patches/sing-openconnect > "$RUNNER_TEMP/openconnect-generated.patch"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openconnect-generated-${{ github.sha }}
+          path: ${{ runner.temp }}/openconnect-generated.patch
+          if-no-files-found: error
+      - name: Test the upstream adapter and product
+        env:
+          GOPROXY: 'off'
+          GOSUMDB: 'off'
+          GOTOOLCHAIN: local
+        run: |
+          python3 -m unittest discover -s tools/vendor -p 'test_*.py' -v
+          python3 patches/sing-openconnect/run.py test
+          go test -mod=vendor -race -tags with_openconnect,with_gvisor,with_utls -count=1 ./protocol/openconnect ./transport/openconnect
+          go vet -mod=vendor -tags with_openconnect,with_gvisor,with_utls ./protocol/openconnect ./transport/openconnect

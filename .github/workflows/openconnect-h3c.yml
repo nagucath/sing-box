@@ -2,7 +2,7 @@ name: H3C OpenConnect
 
 on:
   push:
-    branches: [openconnect/feat/h3c-current, rebase/incus-hotspot-20261119]
+    branches: [openconnect/feat/h3c-current, refactor/openconnect-infra]
   pull_request:
     paths:
       - 'patches/sing-openconnect/**'

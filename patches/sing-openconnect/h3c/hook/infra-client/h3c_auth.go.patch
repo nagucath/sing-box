@@ -1,0 +1,125 @@
+diff --git a/h3c_auth.go b/h3c_auth.go
+new file mode 100644
+index 0000000000000000000000000000000000000000..381d2fc1b8884aa276642d7e1df03e95c85ac1d9
+--- /dev/null
++++ b/h3c_auth.go
+@@ -0,0 +1,119 @@
++package openconnect
++
++import (
++    "context"
++    "errors"
++    "net"
++    "net/http"
++    "net/netip"
++    "sync"
++
++    "github.com/sagernet/sing/common/buf"
++    E "github.com/sagernet/sing/common/exceptions"
++    M "github.com/sagernet/sing/common/metadata"
++    "github.com/wignerStan/infra/go/network/openconnect/h3c"
++)
++
++const FlavorH3C = "h3c"
++const h3cUserAgent = h3c.UserAgent
++
++type h3cFrontend struct { client *Client; native *h3c.Client }
++type h3cAuthentication struct {
++    frontend *h3cFrontend
++    mu sync.Mutex
++    used, closed bool
++    cancel context.CancelFunc
++}
++type h3cObtainedSession struct { frontend *h3cFrontend; native *h3c.Authentication }
++type h3cSession struct { *h3c.Session; client *Client; done chan error }
++
++func init() { registerFlavorFrontend(FlavorH3C, newH3CFrontend) }
++func newH3CFrontend(client *Client) (flavorFrontend, error) {
++    if client.configuredTLSClientCertificate() || client.options.Token != nil || client.options.PasswordAuthenticationDisabled || len(client.options.FormEntries) > 0 {
++        return nil, E.Extend(ErrProtocolNotSupported, "H3C supports configured password or direct Cookie authentication")
++    }
++    native, err := h3c.New(h3c.Options{
++        Server: client.serverURL.String(), Username: client.options.Username,
++        Password: client.options.Password, AuthGroup: client.options.AuthGroup,
++        UserAgent: client.options.UserAgent, MTU: client.options.MTU, TLSConfig: client.tlsConfig,
++        DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
++            return client.options.Dialer.DialContext(ctx, network, M.ParseSocksaddr(address))
++        },
++    })
++    if err != nil { return nil, h3cError(err) }
++    return &h3cFrontend{client: client, native: native}, nil
++}
++func (f *h3cFrontend) BeginAuthentication() authContinuation { return &h3cAuthentication{frontend: f} }
++func (a *h3cAuthentication) Done() <-chan error { return nil }
++func (a *h3cAuthentication) Close() error {
++    a.mu.Lock(); defer a.mu.Unlock()
++    a.closed = true
++    if a.cancel != nil { a.cancel() }
++    return nil
++}
++func (a *h3cAuthentication) Advance(ctx context.Context, response *authenticationResponse) (obtainedSession, *authenticationRequest, error) {
++    a.mu.Lock()
++    if a.used || a.closed || response != nil { a.mu.Unlock(); return nil, nil, ErrAuthChallengeCanceled }
++    a.used = true
++    ctx, cancel := context.WithCancel(ctx)
++    a.cancel = cancel
++    a.mu.Unlock()
++    defer cancel()
++    f := a.frontend
++    var jar http.CookieJar
++    if direct := f.client.takeDirectCookie(); direct != "" {
++        var err error
++        jar, _, err = newDirectCookieJar(f.client.serverURL, direct, "svpnginfo")
++        if err != nil { return nil, nil, err }
++    }
++    state, err := f.native.Authenticate(ctx, jar)
++    if err != nil { f.native.CloseIdleConnections(); return nil, nil, h3cError(err) }
++    if ctx.Err() != nil { state.Close(); return nil, nil, ctx.Err() }
++    return &h3cObtainedSession{frontend: f, native: state}, nil, nil
++}
++func (s *h3cObtainedSession) Close() error { return h3cError(s.native.Close()) }
++func (f *h3cFrontend) ConnectTunnel(ctx context.Context, obtained obtainedSession) (clientSession, error) {
++    state, ok := obtained.(*h3cObtainedSession)
++    if !ok || state == nil || state.frontend != f { return nil, E.Extend(ErrProtocolNotSupported, "invalid H3C obtained session") }
++    session := &h3cSession{client: f.client, done: make(chan error, 1)}
++    native, err := f.native.NewSession(ctx, state.native, func(ctx context.Context, packet []byte) {
++        f.client.pushIncomingDataPacketContext(ctx, buf.As(packet))
++    }, func() { f.client.setActiveTransport(session, TransportTLS) })
++    if err != nil { return nil, h3cError(err) }
++    session.Session = native
++    go func() { session.done <- h3cError(<-native.Done()) }()
++    return session, nil
++}
++func (s *h3cSession) Start() error { return h3cError(s.Session.Start()) }
++func (s *h3cSession) Done() <-chan error { return s.done }
++func (s *h3cSession) Close() error {
++    err := s.Session.Close()
++    s.client.stopActiveTransport(s)
++    return h3cError(err)
++}
++func (s *h3cSession) WriteDataPackets(packets [][]byte) error { return h3cError(s.WritePackets(packets)) }
++func (s *h3cSession) WriteDataPacketBuffers(packets []*buf.Buffer) error {
++    defer buf.ReleaseMulti(packets)
++    data := make([][]byte, len(packets))
++    for i, packet := range packets { data[i] = packet.Bytes() }
++    return s.WriteDataPackets(data)
++}
++func (s *h3cSession) TunnelConfiguration() TunnelConfiguration {
++    native := s.Configuration()
++    configuration := TunnelConfiguration{MTU: native.MTU, Addresses: append([]netip.Prefix(nil), native.Addresses...), defaultIPv4RouteSuppressed: true, defaultIPv6RouteSuppressed: true}
++    for _, route := range native.Routes { configuration.Routes = append(configuration.Routes, TunnelRoute{Prefix: route}) }
++    return configuration
++}
++func h3cError(err error) error {
++    if err == nil { return nil }
++    for _, pair := range [][2]error{
++        {h3c.ErrClosed, ErrClientClosed},
++        {h3c.ErrDataChannelNotReady, ErrDataChannelNotReady},
++        {h3c.ErrAuthenticationFailed, ErrAuthenticationFailed},
++        {h3c.ErrProtocolNotSupported, ErrProtocolNotSupported},
++        {h3c.ErrConfiguration, errTunnelConfiguration},
++    } {
++        if errors.Is(err, pair[0]) { return errors.Join(err, pair[1]) }
++    }
++    return err
++}
